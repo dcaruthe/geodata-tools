@@ -1,7 +1,7 @@
 using GeoTools.Shared.Application.Rendering;
-using GeoTools.Shared.Application.Scenes;
 using GeoTools.Shared.Presentation.Controls;
 using GeoTools.Shared.Presentation.Options;
+using GeoTools.Shared.Presentation.Views;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -10,7 +10,7 @@ namespace GeoTools.Shared.Presentation.Workers;
 
 internal sealed class RenderingWorker(
     ISceneRenderer renderer,
-    SceneDto scene,
+    ISceneSource source,
     SceneWindow window,
     IOptions<WindowOptions> options,
     IHostApplicationLifetime lifetime,
@@ -19,7 +19,10 @@ internal sealed class RenderingWorker(
 {
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        window.SetScene(renderer, scene);
+        window.SetScene(
+            renderer,
+            source.Compose(new ViewSize(window.ClientSize.X, window.ClientSize.Y))
+        );
         logger.LogInformation(
             "Window \"{Title}\" {Width}x{Height}. Close the window or press Ctrl+C to exit.",
             options.Value.Title,

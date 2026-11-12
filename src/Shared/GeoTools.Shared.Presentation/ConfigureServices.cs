@@ -1,9 +1,9 @@
 using GeoTools.Shared.Application.Abstractions.Graphics;
-using GeoTools.Shared.Application.Scenes;
 using GeoTools.Shared.Infrastructure;
 using GeoTools.Shared.Infrastructure.Rendering.OpenGl;
 using GeoTools.Shared.Presentation.Controls;
 using GeoTools.Shared.Presentation.Options;
+using GeoTools.Shared.Presentation.Views;
 using GeoTools.Shared.Presentation.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,11 +41,10 @@ public static class ConfigureServices
         services.AddSingleton<IRenderSurface>(provider =>
             provider.GetRequiredService<SkiaOpenGlSurface>()
         );
-        services.AddSingleton(provider =>
-        {
-            var options = provider.GetRequiredService<IOptions<WindowOptions>>().Value;
-            return DemoScene.Create(options.Width, options.Height);
-        });
+        services.AddSingleton<IView, MapView>();
+        services.AddSingleton<IView, SettingsView>();
+        services.AddSingleton<ViewCatalog>();
+        services.AddSingleton<ISceneSource, ActiveViewSceneSource>();
         services.AddHostedService<RenderingWorker>();
 
         return services;

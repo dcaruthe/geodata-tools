@@ -33,6 +33,18 @@ internal sealed class SkiaCanvas : ICanvas
         _canvas.DrawPath(path, paint);
     }
 
+    public void DrawText(Point position, string text, float size, Color color)
+    {
+        using var font = new SKFont { Size = size, Edging = SKFontEdging.Antialias };
+        using var paint = new SKPaint
+        {
+            Color = ToSk(color),
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+        };
+        _canvas.DrawText(text, position.X, position.Y, SKTextAlign.Left, font, paint);
+    }
+
     private static SKPaint CreatePaint(Color color, float thickness, bool filled) =>
         new()
         {

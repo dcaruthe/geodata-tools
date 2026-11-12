@@ -51,6 +51,21 @@ public sealed class DefaultSceneRendererTests
         surface.ClearColor.Should().Be(Background);
     }
 
+    [Fact]
+    public void Render_draws_text_at_its_baseline()
+    {
+        var scene = new SceneDto(
+            [new TextDto(new Point(12, 34), "hello", 18, new Color(1, 2, 3))],
+            Background
+        );
+        var surface = new RecordingSurface();
+
+        new DefaultSceneRenderer(surface).Render(scene);
+
+        surface.Calls.Should().Equal(("text", false, 18f));
+        surface.TextCalls.Should().Equal((new Point(12, 34), "hello", 18f, new Color(1, 2, 3)));
+    }
+
     private static RecordingSurface RenderScene()
     {
         var scene = new SceneDto(
@@ -82,6 +97,7 @@ public sealed class DefaultSceneRendererTests
     private sealed class RecordingSurface : IRenderSurface
     {
         public List<(string Kind, bool Filled, float Thickness)> Calls { get; } = [];
+        public List<(Point Position, string Text, float Size, Color Color)> TextCalls { get; } = [];
         public Color? ClearColor { get; private set; }
 
         public void Render(Action<ICanvas> draw) => draw(new RecordingCanvas(this));
@@ -107,6 +123,12 @@ public sealed class DefaultSceneRendererTests
                 float thickness,
                 bool filled
             ) => surface.Calls.Add(("polygon", filled, thickness));
+
+            public void DrawText(Point position, string text, float size, Color color)
+            {
+                surface.Calls.Add(("text", false, size));
+                surface.TextCalls.Add((position, text, size, color));
+            }
         }
     }
 }

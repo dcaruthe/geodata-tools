@@ -41,6 +41,9 @@ public sealed class DefaultSceneRenderer : ISceneRenderer
                             polygon.Filled
                         );
                         break;
+                    case TextDto text:
+                        canvas.DrawText(text.Position, text.Text, text.Size, text.Color);
+                        break;
                     default:
                         throw new NotSupportedException(
                             $"Unsupported shape {shape.GetType().Name}."

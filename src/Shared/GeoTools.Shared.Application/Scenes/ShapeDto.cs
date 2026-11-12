@@ -20,3 +20,5 @@ public sealed record PolygonDto(
     float Thickness,
     bool Filled = true
 ) : ShapeDto;
+
+public sealed record TextDto(Point Position, string Text, float Size, Color Color) : ShapeDto;
