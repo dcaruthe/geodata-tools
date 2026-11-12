@@ -34,6 +34,18 @@ public static class ConfigureServices
         services
             .AddOptions<MapOptions>()
             .BindConfiguration(MapOptions.SectionName)
+            // The binder merges into an existing array, so replace the levels
+            // from configuration instead of inheriting the class default.
+            .PostConfigure<IConfiguration>(
+                (options, configuration) =>
+                {
+                    var section = configuration.GetSection(
+                        $"{MapOptions.SectionName}:{nameof(MapOptions.AdminLevels)}"
+                    );
+                    if (section.Exists())
+                        options.AdminLevels = section.Get<int[]>() ?? [];
+                }
+            )
             .Validate(
                 o => !string.IsNullOrWhiteSpace(o.BordersDirectory),
                 "Borders directory is required."

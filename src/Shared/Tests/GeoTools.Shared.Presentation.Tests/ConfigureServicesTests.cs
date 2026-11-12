@@ -64,11 +64,32 @@ public sealed class ConfigureServicesTests
         );
     }
 
+    [Fact]
+    public void Map_options_replace_the_default_admin_levels_from_configuration()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Map:AdminLevels:0"] = "4" })
+            .Build();
+
+        WithOptions<MapOptions>(
+            configuration,
+            _ => { },
+            options => options.AdminLevels.Should().Equal(4)
+        );
+    }
+
     private static void WithOptions<T>(Action<T> configure, Action<T> inspect)
+        where T : class => WithOptions(new ConfigurationBuilder().Build(), configure, inspect);
+
+    private static void WithOptions<T>(
+        IConfiguration configuration,
+        Action<T> configure,
+        Action<T> inspect
+    )
         where T : class
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton(configuration);
         services.SetupPresentationLayer();
         services.Configure(configure);
 
