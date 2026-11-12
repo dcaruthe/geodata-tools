@@ -49,6 +49,46 @@ public sealed class MapGeometryTests
         screen.Should().OnlyContain(polyline => !polyline.Closed);
     }
 
+    [Fact]
+    public void Project_skips_a_polyline_with_no_points()
+    {
+        var empty = new GeoPolyline([], Closed: false, AdminLevel: 2);
+
+        MapGeometry.Project([empty], new HashSet<int> { 2 }, Viewport).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Project_skips_a_ring_that_projects_to_a_single_point()
+    {
+        var degenerate = new GeoPolyline(
+            [new GeoPoint(0, 0), new GeoPoint(0, 0), new GeoPoint(0, 0)],
+            Closed: true,
+            AdminLevel: 2
+        );
+
+        MapGeometry.Project([degenerate], new HashSet<int> { 2 }, Viewport).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Project_splits_an_open_polyline_that_crosses_the_antimeridian()
+    {
+        var line = new GeoPolyline(
+            [
+                new GeoPoint(160, 0),
+                new GeoPoint(170, 0),
+                new GeoPoint(-170, 0),
+                new GeoPoint(-160, 0),
+            ],
+            Closed: false,
+            AdminLevel: 2
+        );
+
+        var screen = MapGeometry.Project([line], new HashSet<int> { 2 }, Viewport);
+
+        screen.Should().HaveCount(2);
+        screen.Should().OnlyContain(polyline => !polyline.Closed);
+    }
+
     private static GeoPolyline Ring(
         int adminLevel,
         double minLongitude,

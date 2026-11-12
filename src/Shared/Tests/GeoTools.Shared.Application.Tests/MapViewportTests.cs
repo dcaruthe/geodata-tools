@@ -18,6 +18,14 @@ public sealed class MapViewportTests
     }
 
     [Fact]
+    public void Fit_falls_back_to_unit_scale_for_bounds_with_no_span()
+    {
+        var viewport = MapViewport.Fit(new GeoBounds(0, 0, 0, 0), 100, 100, 0);
+
+        viewport.Scale.Should().Be(1);
+    }
+
+    [Fact]
     public void Fit_centers_aspect_preserved_content_in_a_wider_window()
     {
         var viewport = MapViewport.Fit(GeoBounds.World, 2000, 500, 0);

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using GeoTools.Shared.Application.Geospatial;
 using GeoTools.Shared.Domain.Geospatial;
+using GeoTools.Shared.Domain.Primatives;
 
 namespace GeoTools.Shared.Application.Tests;
 
@@ -72,5 +73,37 @@ public sealed class PolylineSimplifierTests
         var simplified = PolylineSimplifier.Simplify(ring, 0.001);
 
         simplified.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Simplify_returns_a_polyline_shorter_than_three_points_unchanged()
+    {
+        var points = new[] { new GeoPoint(0, 0), new GeoPoint(1, 1) };
+
+        PolylineSimplifier.Simplify(points, 0.001).Should().Equal(points);
+    }
+
+    [Fact]
+    public void Simplify_drops_a_ring_whose_points_are_all_identical()
+    {
+        var ring = new[] { new GeoPoint(1, 1), new GeoPoint(1, 1), new GeoPoint(1, 1) };
+
+        PolylineSimplifier.Simplify(ring, 0.5).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Simplify_drops_a_screen_ring_whose_points_are_all_identical()
+    {
+        var ring = new[] { new Point(1, 1), new Point(1, 1), new Point(1, 1) };
+
+        PolylineSimplifier.Simplify(ring, 0.5f).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Simplify_drops_a_screen_ring_with_only_two_distinct_points()
+    {
+        var ring = new[] { new Point(0, 0), new Point(10, 0), new Point(0, 0) };
+
+        PolylineSimplifier.Simplify(ring, 0.5f).Should().BeEmpty();
     }
 }

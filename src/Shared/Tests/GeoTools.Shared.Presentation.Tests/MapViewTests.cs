@@ -2,6 +2,7 @@ using FluentAssertions;
 using GeoTools.Shared.Application.Geospatial;
 using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.Scenes;
+using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Domain.Geospatial;
 using GeoTools.Shared.Domain.Primatives;
 using GeoTools.Shared.Presentation.Views;
@@ -134,6 +135,53 @@ public sealed class MapViewTests
         scene.Shapes.OfType<TextDto>().Should().Contain(text => text.Text.Contains("Tab"));
     }
 
+    [Fact]
+    public void Id_is_map()
+    {
+        CreateView().Id.Should().Be(ViewId.Map);
+    }
+
+    [Fact]
+    public void Compose_uses_default_options_when_the_monitor_throws_before_any_good_value()
+    {
+        var monitor = new ThrowingOptionsMonitor(
+            new MapOptions { AdminLevels = [2], BordersDirectory = "geodata/borders" }
+        )
+        {
+            Throw = true,
+        };
+        var view = new MapView(
+            new FakeBorderSource(Borders()),
+            monitor,
+            NullLogger<MapView>.Instance
+        );
+
+        var scene = view.Compose(new ViewSize(800, 600));
+
+        scene.Shapes.OfType<PolygonDto>().Should().ContainSingle();
+        scene.Shapes.OfType<PolylineDto>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Compose_reuses_the_last_good_options_when_the_monitor_starts_throwing()
+    {
+        var monitor = new ThrowingOptionsMonitor(
+            new MapOptions { AdminLevels = [4], BordersDirectory = "geodata/borders" }
+        );
+        var view = new MapView(
+            new FakeBorderSource(Borders()),
+            monitor,
+            NullLogger<MapView>.Instance
+        );
+        view.Compose(new ViewSize(800, 600));
+
+        monitor.Throw = true;
+        var scene = view.Compose(new ViewSize(1024, 768));
+
+        scene.Shapes.OfType<PolygonDto>().Should().ContainSingle();
+        scene.Shapes.OfType<PolylineDto>().Should().BeEmpty();
+    }
+
     private static MapView CreateView() =>
         CreateView(
             new FakeBorderSource(Borders()),
@@ -192,5 +240,19 @@ public sealed class MapViewTests
         public T Get(string? name) => CurrentValue;
 
         public IDisposable? OnChange(Action<T, string?> listener) => null;
+    }
+
+    private sealed class ThrowingOptionsMonitor(MapOptions value) : IOptionsMonitor<MapOptions>
+    {
+        public bool Throw { get; set; }
+
+        public MapOptions CurrentValue =>
+            Throw
+                ? throw new OptionsValidationException("Map", typeof(MapOptions), ["invalid"])
+                : value;
+
+        public MapOptions Get(string? name) => CurrentValue;
+
+        public IDisposable? OnChange(Action<MapOptions, string?> listener) => null;
     }
 }

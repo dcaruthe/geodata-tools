@@ -80,6 +80,16 @@ public sealed class DefaultSceneRendererTests
         surface.Calls.Should().Equal(("polyline", false, 7f));
     }
 
+    [Fact]
+    public void Render_throws_for_a_shape_it_does_not_know()
+    {
+        var scene = new SceneDto([new UnknownShape()], Background);
+
+        var act = () => new DefaultSceneRenderer(new RecordingSurface()).Render(scene);
+
+        act.Should().Throw<NotSupportedException>().WithMessage("*UnknownShape*");
+    }
+
     private static RecordingSurface RenderScene()
     {
         var scene = new SceneDto(
@@ -148,4 +158,6 @@ public sealed class DefaultSceneRendererTests
             }
         }
     }
+
+    private sealed record UnknownShape : ShapeDto;
 }
