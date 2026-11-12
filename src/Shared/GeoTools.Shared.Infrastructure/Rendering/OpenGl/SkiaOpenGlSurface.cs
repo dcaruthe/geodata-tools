@@ -56,8 +56,9 @@ public sealed class SkiaOpenGlSurface : IRenderSurface, IDisposable
         );
         var stencilBits = Math.Min(stencilSize, 8);
 
-        // Skia's built-in GL loader returns null on this Linux build, so use the window's loader.
-        _glInterface ??= GRGlInterface.CreateOpenGl(_gl.GetProcAddress)
+        // Skia's built-in loader cannot assemble an interface on Wayland, so fall back to the context's own loader.
+        _glInterface ??= GRGlInterface.Create()
+            ?? GRGlInterface.CreateOpenGl(_gl.GetProcAddress)
             ?? throw new InvalidOperationException(
                 $"Skia could not create a GL interface for {w}x{h} at {samples} samples and {stencilBits} stencil bits."
             );

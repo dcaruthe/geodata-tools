@@ -34,6 +34,7 @@ if (outPath is null)
 {
     Console.WriteLine($"Opening interactive scene window ({width}x{height}).");
 
+    SceneWindow.PreferX11();
     using var window = new SceneWindow(width, height);
     using var surface = new SkiaOpenGlSurface(window);
     window.SetScene(new DefaultSceneRenderer(surface), DemoScene.Create(width, height));
