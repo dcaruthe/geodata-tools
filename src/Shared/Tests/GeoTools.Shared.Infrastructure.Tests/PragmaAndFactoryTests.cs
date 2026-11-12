@@ -1,5 +1,10 @@
 using FluentAssertions;
+using GeoTools.Shared.Application.Geospatial;
+using GeoTools.Shared.Application.Messaging;
+using GeoTools.Shared.Application.Messaging.Messages;
 using GeoTools.Shared.Application.Options;
+using GeoTools.Shared.Application.State;
+using GeoTools.Shared.Infrastructure.Messaging;
 using GeoTools.Shared.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +22,70 @@ public sealed class PragmaAndFactoryTests
         await using var context = await database.Factory.CreateDbContextAsync();
 
         context.Messages.Count().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_read_only_factory_refuses_writes()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["Storage:DatabasePath"] = database.Path,
+                        ["Storage:ReadOnly"] = "true",
+                    }
+                )
+                .Build()
+        );
+        services.SetupInfrastructureDataLayer();
+
+        await using var provider = services.BuildServiceProvider();
+        var factory = provider.GetRequiredService<IDbContextFactory<GeoToolsDbContext>>();
+        await using var context = await factory.CreateDbContextAsync();
+        context.Settings.Add(
+            new SettingRow
+            {
+                Key = "x",
+                Value = "1",
+                Source = "test",
+                UpdatedAt = 0,
+            }
+        );
+
+        var act = async () => await context.SaveChangesAsync();
+
+        var exception = await act.Should().ThrowAsync<DbUpdateException>();
+        exception
+            .WithInnerException<SqliteException>()
+            .Where(inner => inner.Message.Contains("readonly", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task The_data_layer_registers_a_read_only_bus_and_no_workers()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder().AddInMemoryCollection().Build()
+        );
+        services.SetupInfrastructureDataLayer();
+
+        await using var provider = services.BuildServiceProvider();
+
+        provider.GetService<IMessageBus>().Should().BeOfType<NullMessageBus>();
+        provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().Should().BeEmpty();
+        provider.GetService<IStateInitializer>().Should().BeNull();
+        provider.GetService<IBorderGeometryLoader>().Should().NotBeNull();
+
+        var publish = async () =>
+            await provider
+                .GetRequiredService<IMessageBus>()
+                .PublishAsync(new SettingsChanged("x", "y", DateTimeOffset.UnixEpoch));
+
+        await publish.Should().ThrowAsync<NotSupportedException>();
     }
 
     [Fact]

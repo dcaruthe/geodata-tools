@@ -24,6 +24,15 @@ public static class ConfigureServices
 {
     public static IServiceCollection SetupInfrastructureLayer(this IServiceCollection services)
     {
+        services.SetupInfrastructureDataLayer();
+        services.SetupInfrastructureRuntimeLayer();
+        return services;
+    }
+
+    // Options, the database, and the stores. A second host that only reads state, such as the
+    // API, registers this layer alone. It must not start the geodata worker or the message bus.
+    public static IServiceCollection SetupInfrastructureDataLayer(this IServiceCollection services)
+    {
         services.SetupApplicationLayer();
 
         services
@@ -117,18 +126,26 @@ public static class ConfigureServices
             {
                 var storage = provider.GetRequiredService<IOptions<StorageOptions>>().Value;
                 var path = RepositoryPaths.Resolve(storage.DatabasePath);
-                var directory = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(directory))
-                    Directory.CreateDirectory(directory);
+                if (!storage.ReadOnly)
+                {
+                    var directory = Path.GetDirectoryName(path);
+                    if (!string.IsNullOrEmpty(directory))
+                        Directory.CreateDirectory(directory);
+                }
 
                 var connectionString = new SqliteConnectionStringBuilder
                 {
                     DataSource = path,
                     Pooling = true,
                     ForeignKeys = true,
+                    Mode = storage.ReadOnly
+                        ? SqliteOpenMode.ReadOnly
+                        : SqliteOpenMode.ReadWriteCreate,
                 }.ToString();
 
-                options.UseSqlite(connectionString).AddInterceptors(new SqlitePragmaInterceptor());
+                options
+                    .UseSqlite(connectionString)
+                    .AddInterceptors(new SqlitePragmaInterceptor(storage.ReadOnly));
             }
         );
 
@@ -136,6 +153,20 @@ public static class ConfigureServices
         services.AddSingleton<IJobStore, JobStore>();
         services.AddSingleton<IGeometryCache, GeometryCacheStore>();
         services.AddSingleton<ISettingsStore, SettingsStore>();
+        services.AddSingleton<IBorderGeometryLoader, CachedBorderGeometryLoader>();
+
+        // A read-only host builds ISettingsStore, which needs a bus. The runtime layer adds
+        // SqliteMessageBus afterwards and that registration wins for single resolution.
+        services.AddSingleton<IMessageBus, NullMessageBus>();
+
+        return services;
+    }
+
+    // Everything that owns a process: the message log, the workers, HTTP, and osmium.
+    public static IServiceCollection SetupInfrastructureRuntimeLayer(
+        this IServiceCollection services
+    )
+    {
         services.AddSingleton<IStateInitializer, StateInitializer>();
 
         services.AddSingleton<IMessageBus, SqliteMessageBus>();
@@ -146,7 +177,6 @@ public static class ConfigureServices
         services.AddSingleton<IProcessRunner, ProcessRunner>();
         services.AddSingleton<IPbfDownloader, HttpPbfDownloader>();
         services.AddSingleton<IBorderExtractor, BorderExtractor>();
-        services.AddSingleton<IBorderGeometryLoader, CachedBorderGeometryLoader>();
         services.AddSingleton<IGeodataPipeline, GeodataPipeline>();
         services.AddSingleton<GeodataWorker>();
         services.AddSingleton<IMessageSubscription>(provider =>
