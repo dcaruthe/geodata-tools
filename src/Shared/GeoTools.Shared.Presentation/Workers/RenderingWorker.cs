@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using GeoTools.Shared.Application.Rendering;
 using GeoTools.Shared.Presentation.Controls;
 using GeoTools.Shared.Presentation.Options;
@@ -8,6 +9,8 @@ using Microsoft.Extensions.Options;
 
 namespace GeoTools.Shared.Presentation.Workers;
 
+// Hosts the GLFW render loop, which needs a live OpenGL context; the verify skill drives the real app.
+[ExcludeFromCodeCoverage]
 internal sealed class RenderingWorker(
     ISceneRenderer renderer,
     ISceneSource source,

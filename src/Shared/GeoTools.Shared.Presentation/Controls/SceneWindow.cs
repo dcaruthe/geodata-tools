@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using GeoTools.Shared.Application.Abstractions.Graphics;
 using GeoTools.Shared.Application.Rendering;
 using GeoTools.Shared.Application.Views;
@@ -10,6 +11,8 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace GeoTools.Shared.Presentation.Controls;
 
+// Needs a live GLFW window and OpenGL context; the verify skill drives the real app instead.
+[ExcludeFromCodeCoverage]
 public sealed class SceneWindow : GameWindow, IOpenGlContext
 {
     private readonly INavigationMediator _mediator;

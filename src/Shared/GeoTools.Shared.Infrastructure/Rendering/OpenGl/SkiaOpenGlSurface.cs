@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using GeoTools.Shared.Application.Abstractions.Graphics;
 using GeoTools.Shared.Infrastructure.Graphics.Skia;
 using OpenTK.Graphics.OpenGL4;
@@ -5,6 +6,8 @@ using SkiaSharp;
 
 namespace GeoTools.Shared.Infrastructure.Rendering.OpenGl;
 
+// Needs a live OpenGL context; the verify skill drives the real app instead.
+[ExcludeFromCodeCoverage]
 public sealed class SkiaOpenGlSurface : IRenderSurface, IDisposable
 {
     private readonly IOpenGlContext _gl;
