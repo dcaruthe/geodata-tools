@@ -131,6 +131,12 @@ internal sealed class GeoJsonSeqBorderSource : IBorderSource
                 using var document = JsonDocument.Parse(line);
                 var feature = document.RootElement;
 
+                if (feature.ValueKind != JsonValueKind.Object)
+                {
+                    skippedFeatures++;
+                    continue;
+                }
+
                 if (
                     !feature.TryGetProperty("properties", out var properties)
                     || !TryReadAdminLevel(properties, out var adminLevel)
@@ -193,6 +199,12 @@ internal sealed class GeoJsonSeqBorderSource : IBorderSource
         var polylines = new List<GeoPolyline>();
         if (!geometry.TryGetProperty("coordinates", out var coordinates))
             return polylines;
+
+        if (coordinates.ValueKind != JsonValueKind.Array)
+        {
+            skippedGeometry++;
+            return polylines;
+        }
 
         switch (geometryType)
         {
