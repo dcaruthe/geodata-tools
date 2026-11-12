@@ -12,8 +12,9 @@ public sealed class SceneWindow : GameWindow, IOpenGlContext
 {
     private ISceneRenderer? _renderer;
     private SceneDto? _scene;
+    private volatile bool _closeRequested;
 
-    public SceneWindow(int width, int height)
+    private SceneWindow(int width, int height)
         : base(
             GameWindowSettings.Default,
             new NativeWindowSettings
@@ -25,11 +26,17 @@ public sealed class SceneWindow : GameWindow, IOpenGlContext
             }
         ) { }
 
+    public static SceneWindow Create(int width, int height)
+    {
+        PreferX11();
+        return new SceneWindow(width, height);
+    }
+
     // GLFW selects Wayland by default, and its Wayland path loads libdecor, which loads GTK when
     // the compositor wants client-side decorations. This window needs no toolkit, and GTK aborts
     // inside glfwInit when the desktop's settings schema is inconsistent. XWayland serves
     // DISPLAY whenever the session offers one, so take that path and leave GTK out of the process.
-    public static void PreferX11()
+    private static void PreferX11()
     {
         if (
             OperatingSystem.IsLinux()
@@ -42,6 +49,16 @@ public sealed class SceneWindow : GameWindow, IOpenGlContext
     {
         _renderer = renderer;
         _scene = scene;
+    }
+
+    internal void RequestClose() => _closeRequested = true;
+
+    protected override void OnUpdateFrame(FrameEventArgs args)
+    {
+        if (_closeRequested)
+            Close();
+
+        base.OnUpdateFrame(args);
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
