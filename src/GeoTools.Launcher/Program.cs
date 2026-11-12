@@ -1,11 +1,13 @@
 using GeoTools.Shared.Application.Abstractions.Graphics;
 using GeoTools.Shared.Application.Rendering;
 using GeoTools.Shared.Application.Scenes;
+using GeoTools.Shared.Infrastructure.Rendering.OpenGl;
 using GeoTools.Shared.Infrastructure.Rendering.Raster;
 using GeoTools.Shared.Presentation;
+using GeoTools.Shared.Presentation.Controls;
 using Microsoft.Extensions.DependencyInjection;
 
-var outPath = "artifacts/scene.png";
+string? outPath = null;
 var width = 1200;
 var height = 800;
 
@@ -26,6 +28,17 @@ for (var i = 0; i < args.Length; i++)
             Console.Error.WriteLine($"Ignoring unknown argument '{args[i]}'.");
             break;
     }
+}
+
+if (outPath is null)
+{
+    Console.WriteLine($"Opening interactive scene window ({width}x{height}).");
+
+    using var window = new SceneWindow(width, height);
+    using var surface = new SkiaOpenGlSurface(window);
+    window.SetScene(new DefaultSceneRenderer(surface), DemoScene.Create(width, height));
+    window.Run();
+    return;
 }
 
 var services = new ServiceCollection();
