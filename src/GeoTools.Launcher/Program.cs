@@ -1,8 +1,51 @@
+using GeoTools.Shared.Application.Abstractions.Graphics;
+using GeoTools.Shared.Application.Rendering;
+using GeoTools.Shared.Application.Scenes;
+using GeoTools.Shared.Infrastructure.Rendering.Raster;
 using GeoTools.Shared.Presentation;
+using Microsoft.Extensions.DependencyInjection;
 
-var builder = Host.CreateApplicationBuilder(args);
+var outPath = "artifacts/scene.png";
+var width = 1200;
+var height = 800;
 
-builder.Services.SetupPresentationLayer();
+for (var i = 0; i < args.Length; i++)
+{
+    switch (args[i])
+    {
+        case "--out":
+            outPath = RequireValue(args, ref i);
+            break;
+        case "--width":
+            width = int.Parse(RequireValue(args, ref i));
+            break;
+        case "--height":
+            height = int.Parse(RequireValue(args, ref i));
+            break;
+        default:
+            Console.Error.WriteLine($"Ignoring unknown argument '{args[i]}'.");
+            break;
+    }
+}
 
-var host = builder.Build();
-await host.RunAsync();
+var services = new ServiceCollection();
+services.SetupPresentationLayer();
+services.AddSingleton(_ => new SkiaRasterSurface(width, height));
+services.AddSingleton<IRenderSurface>(provider => provider.GetRequiredService<SkiaRasterSurface>());
+
+using var provider = services.BuildServiceProvider();
+
+var scene = DemoScene.Create(width, height);
+provider.GetRequiredService<ISceneRenderer>().Render(scene);
+
+provider.GetRequiredService<SkiaRasterSurface>().Save(outPath);
+
+Console.WriteLine($"Wrote {Path.GetFullPath(outPath)} ({scene.Shapes.Count} shapes).");
+
+static string RequireValue(string[] args, ref int index)
+{
+    if (index + 1 >= args.Length)
+        throw new ArgumentException($"Missing value for '{args[index]}'.");
+
+    return args[++index];
+}
