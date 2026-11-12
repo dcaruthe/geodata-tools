@@ -63,26 +63,64 @@ build_region() {
   rm -f "$output" "$levels_file"
 
   # Two passes: osmium ORs the values inside one tag expression, so the
-  # boundary=administrative and admin_level filters cannot be combined.
-  if ! osmium tags-filter -O -o "$boundary" "$input" r/boundary=administrative; then
+  # boundary=administrative and admin_level filters cannot be combined. The
+  # level filter runs first so the intermediate file stays small.
+  if ! osmium tags-filter -O -o "$admin" "$input" "${level_expressions[@]}"; then
+    log "FAILED    $region stage=level-filter"
+    echo "$region: admin_level filter failed, intermediates kept in $WORK_DIR" >&2
+    return 1
+  fi
+
+  if ! osmium tags-filter -O -o "$boundary" "$admin" r/boundary=administrative; then
     log "FAILED    $region stage=boundary-filter"
     echo "$region: boundary filter failed, intermediates kept in $WORK_DIR" >&2
     return 1
   fi
 
-  if ! osmium tags-filter -O -o "$admin" "$boundary" "${level_expressions[@]}"; then
-    log "FAILED    $region stage=admin-filter"
-    echo "$region: admin_level filter failed, intermediates kept in $WORK_DIR" >&2
-    return 1
-  fi
-
   if ! osmium export -O -f geojsonseq --geometry-types=polygon,linestring -a id \
-       -o "$output" "$admin"; then
+       -o "$output" "$boundary"; then
     log "FAILED    $region stage=export"
     echo "$region: export failed, intermediates kept in $WORK_DIR" >&2
     return 1
   fi
 
+  # Referenced member relations and ways keep their own admin_level tags, so the
+  # export can contain levels that were not requested. Keep the requested levels
+  # only, matching the sidecar the loader's runtime level selection relies on.
+  filtered="$output.filtered"
+  if ! python3 - "$output" "$filtered" "$ADMIN_LEVELS" <<'PY'
+import json
+import sys
+
+source, target, levels_text = sys.argv[1], sys.argv[2], sys.argv[3]
+levels = {int(level) for level in levels_text.split(",")}
+
+with open(source, encoding="utf-8") as source_file, open(
+    target, "w", encoding="utf-8"
+) as target_file:
+    for line in source_file:
+        feature_text = line.strip().lstrip("\x1e")
+        if not feature_text:
+            continue
+
+        feature = json.loads(feature_text)
+        raw_level = (feature.get("properties") or {}).get("admin_level")
+        try:
+            level = int(raw_level)
+        except (TypeError, ValueError):
+            continue
+
+        if level in levels:
+            target_file.write("\x1e" + feature_text + "\n")
+PY
+  then
+    log "FAILED    $region stage=level-postfilter"
+    echo "$region: admin_level post-filter failed" >&2
+    rm -f "$filtered"
+    return 1
+  fi
+
+  mv -f "$filtered" "$output"
   printf '%s\n' "$ADMIN_LEVELS" > "$levels_file"
   rm -f "$boundary" "$admin"
 
