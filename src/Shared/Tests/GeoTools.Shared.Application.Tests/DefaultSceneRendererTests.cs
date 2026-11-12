@@ -66,6 +66,20 @@ public sealed class DefaultSceneRendererTests
         surface.TextCalls.Should().Equal((new Point(12, 34), "hello", 18f, new Color(1, 2, 3)));
     }
 
+    [Fact]
+    public void Render_draws_polylines_with_their_thickness()
+    {
+        var scene = new SceneDto(
+            [new PolylineDto([new Point(0, 0), new Point(10, 10)], new Color(1, 2, 3), 7)],
+            Background
+        );
+        var surface = new RecordingSurface();
+
+        new DefaultSceneRenderer(surface).Render(scene);
+
+        surface.Calls.Should().Equal(("polyline", false, 7f));
+    }
+
     private static RecordingSurface RenderScene()
     {
         var scene = new SceneDto(
@@ -123,6 +137,9 @@ public sealed class DefaultSceneRendererTests
                 float thickness,
                 bool filled
             ) => surface.Calls.Add(("polygon", filled, thickness));
+
+            public void DrawPolyline(IReadOnlyList<Point> points, Color color, float thickness) =>
+                surface.Calls.Add(("polyline", false, thickness));
 
             public void DrawText(Point position, string text, float size, Color color)
             {

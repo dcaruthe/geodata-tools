@@ -8,5 +8,6 @@ public interface ICanvas
     void DrawLine(Point a, Point b, Color color, float thickness);
     void DrawCircle(Point center, float radius, Color color, float thickness, bool filled);
     void DrawPolygon(IReadOnlyList<Point> points, Color color, float thickness, bool filled);
+    void DrawPolyline(IReadOnlyList<Point> points, Color color, float thickness);
     void DrawText(Point position, string text, float size, Color color);
 }

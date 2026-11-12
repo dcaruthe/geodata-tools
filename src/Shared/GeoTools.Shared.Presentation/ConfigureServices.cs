@@ -1,4 +1,5 @@
 using GeoTools.Shared.Application.Abstractions.Graphics;
+using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Infrastructure;
 using GeoTools.Shared.Infrastructure.Rendering.OpenGl;
@@ -28,6 +29,19 @@ public static class ConfigureServices
             .Validate(
                 o => o.Width > 0 && o.Height > 0,
                 "Window width and height must be positive."
+            );
+
+        services
+            .AddOptions<MapOptions>()
+            .BindConfiguration(MapOptions.SectionName)
+            .Validate(
+                o => !string.IsNullOrWhiteSpace(o.BordersDirectory),
+                "Borders directory is required."
+            )
+            .Validate(o => o.AdminLevels is not null, "Admin levels must not be null.")
+            .Validate(
+                o => o.SimplifyToleranceDegrees >= 0,
+                "Simplify tolerance must not be negative."
             );
 
         services.AddSingleton(provider =>

@@ -21,4 +21,7 @@ public sealed record PolygonDto(
     bool Filled = true
 ) : ShapeDto;
 
+public sealed record PolylineDto(IReadOnlyList<Point> Points, Color Color, float Thickness)
+    : ShapeDto;
+
 public sealed record TextDto(Point Position, string Text, float Size, Color Color) : ShapeDto;

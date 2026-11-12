@@ -41,6 +41,9 @@ public sealed class DefaultSceneRenderer : ISceneRenderer
                             polygon.Filled
                         );
                         break;
+                    case PolylineDto polyline:
+                        canvas.DrawPolyline(polyline.Points, polyline.Color, polyline.Thickness);
+                        break;
                     case TextDto text:
                         canvas.DrawText(text.Position, text.Text, text.Size, text.Color);
                         break;

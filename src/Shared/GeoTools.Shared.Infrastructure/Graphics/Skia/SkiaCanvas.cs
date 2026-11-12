@@ -33,6 +33,15 @@ internal sealed class SkiaCanvas : ICanvas
         _canvas.DrawPath(path, paint);
     }
 
+    public void DrawPolyline(IReadOnlyList<Point> points, Color color, float thickness)
+    {
+        using var paint = CreatePaint(color, thickness, filled: false);
+        using var builder = new SKPathBuilder();
+        builder.AddPoly(points.Select(p => new SKPoint(p.X, p.Y)).ToArray(), close: false);
+        using var path = builder.Detach();
+        _canvas.DrawPath(path, paint);
+    }
+
     public void DrawText(Point position, string text, float size, Color color)
     {
         using var font = new SKFont { Size = size, Edging = SKFontEdging.Antialias };
