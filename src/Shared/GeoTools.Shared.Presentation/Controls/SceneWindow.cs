@@ -13,14 +13,19 @@ namespace GeoTools.Shared.Presentation.Controls;
 
 // Needs a live GLFW window and OpenGL context; the verify skill drives the real app instead.
 [ExcludeFromCodeCoverage]
-public sealed class SceneWindow : GameWindow, IOpenGlContext
+internal sealed class SceneWindow : GameWindow, IOpenGlContext
 {
     private readonly INavigationMediator _mediator;
+    private readonly IViewInputRouter _inputRouter;
     private ISceneRenderer? _renderer;
     private ISceneSource? _source;
     private volatile bool _closeRequested;
 
-    private SceneWindow(WindowOptions options, INavigationMediator mediator)
+    private SceneWindow(
+        WindowOptions options,
+        INavigationMediator mediator,
+        IViewInputRouter inputRouter
+    )
         : base(
             GameWindowSettings.Default,
             new NativeWindowSettings
@@ -33,12 +38,17 @@ public sealed class SceneWindow : GameWindow, IOpenGlContext
         )
     {
         _mediator = mediator;
+        _inputRouter = inputRouter;
     }
 
-    public static SceneWindow Create(WindowOptions options, INavigationMediator mediator)
+    public static SceneWindow Create(
+        WindowOptions options,
+        INavigationMediator mediator,
+        IViewInputRouter inputRouter
+    )
     {
         PreferX11();
-        return new SceneWindow(options, mediator);
+        return new SceneWindow(options, mediator, inputRouter);
     }
 
     // GLFW selects Wayland by default, and its Wayland path loads libdecor, which loads GTK when
@@ -80,6 +90,23 @@ public sealed class SceneWindow : GameWindow, IOpenGlContext
 
     protected override void OnKeyDown(KeyboardKeyEventArgs e)
     {
+        var viewKey = e.Key switch
+        {
+            Keys.Up => ViewKey.Up,
+            Keys.Down => ViewKey.Down,
+            Keys.Left => ViewKey.Left,
+            Keys.Right => ViewKey.Right,
+            Keys.Enter or Keys.KeyPadEnter => ViewKey.Enter,
+            Keys.Backspace => ViewKey.Backspace,
+            _ => (ViewKey?)null,
+        };
+
+        if (viewKey is { } key && _inputRouter.Handle(key))
+        {
+            base.OnKeyDown(e);
+            return;
+        }
+
         switch (e.Key)
         {
             case Keys.Escape:

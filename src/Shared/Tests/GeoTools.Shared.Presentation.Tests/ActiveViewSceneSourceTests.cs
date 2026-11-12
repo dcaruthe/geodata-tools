@@ -11,9 +11,10 @@ public sealed class ActiveViewSceneSourceTests
     [Fact]
     public void Compose_follows_the_active_view()
     {
-        var mapView = new TestView(ViewId.Map, new Color(1, 2, 3));
-        var settingsView = new TestView(ViewId.Settings, new Color(4, 5, 6));
-        var catalog = new ViewCatalog([mapView, settingsView]);
+        var loading = new TestView(ViewId.Loading, new Color(1, 2, 3));
+        var map = new TestView(ViewId.Map, new Color(4, 5, 6));
+        var maintenance = new TestView(ViewId.Maintenance, new Color(7, 8, 9));
+        var catalog = new ViewCatalog([loading, map, maintenance]);
         var mediator = new FakeNavigationMediator();
         var source = new ActiveViewSceneSource(
             catalog,
@@ -21,10 +22,12 @@ public sealed class ActiveViewSceneSourceTests
             NullLogger<ActiveViewSceneSource>.Instance
         );
 
-        source.Compose(new ViewSize(100, 100)).Background.Should().Be(mapView.Background);
+        source.Compose(new ViewSize(100, 100)).Background.Should().Be(loading.Background);
 
-        mediator.NavigateTo(ViewId.Settings);
+        mediator.NavigateTo(ViewId.Maintenance);
+        source.Compose(new ViewSize(100, 100)).Background.Should().Be(maintenance.Background);
 
-        source.Compose(new ViewSize(100, 100)).Background.Should().Be(settingsView.Background);
+        mediator.NavigateTo(ViewId.Map);
+        source.Compose(new ViewSize(100, 100)).Background.Should().Be(map.Background);
     }
 }

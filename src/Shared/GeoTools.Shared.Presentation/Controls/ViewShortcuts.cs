@@ -8,7 +8,7 @@ internal static class ViewShortcuts
     private static readonly Dictionary<Keys, ViewId> Views = new()
     {
         [Keys.D1] = ViewId.Map,
-        [Keys.D2] = ViewId.Settings,
+        [Keys.D2] = ViewId.Maintenance,
     };
 
     public static bool TryGetView(Keys key, out ViewId view) => Views.TryGetValue(key, out view);

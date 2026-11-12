@@ -14,7 +14,7 @@ public sealed class ViewShortcutsTests
         first.Should().Be(ViewId.Map);
 
         ViewShortcuts.TryGetView(Keys.D2, out var second).Should().BeTrue();
-        second.Should().Be(ViewId.Settings);
+        second.Should().Be(ViewId.Maintenance);
     }
 
     [Fact]

@@ -29,7 +29,11 @@ internal sealed class RenderingWorker(
             options.Value.Width,
             options.Value.Height
         );
-        logger.LogInformation("Keys: 1 map, 2 settings, Tab next, Esc close.");
+        logger.LogInformation("Keys: 1 map, 2 maintenance, Tab next, Esc close.");
+        logger.LogInformation(
+            "Maintenance: Up/Down select, Left/Right change, Enter run, Backspace cancel."
+        );
+        logger.LogInformation("Showing the loading view.");
 
         using var closeOnStop = cancellationToken.Register(window.RequestClose);
 

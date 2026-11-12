@@ -1,5 +1,7 @@
 using GeoTools.Shared.Application.Abstractions.Graphics;
+using GeoTools.Shared.Application.Messaging;
 using GeoTools.Shared.Application.Options;
+using GeoTools.Shared.Application.Rendering;
 using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Infrastructure;
 using GeoTools.Shared.Infrastructure.Rendering.OpenGl;
@@ -46,20 +48,20 @@ public static class ConfigureServices
                         options.AdminLevels = section.Get<int[]>() ?? [];
                 }
             )
-            .Validate(
-                o => !string.IsNullOrWhiteSpace(o.BordersDirectory),
-                "Borders directory is required."
-            )
             .Validate(o => o.AdminLevels is not null, "Admin levels must not be null.")
             .Validate(
-                o => o.SimplifyToleranceDegrees >= 0,
-                "Simplify tolerance must not be negative."
+                o => o.AdminLevels is null || o.AdminLevels.All(level => level > 0),
+                "Admin levels must be positive."
             );
 
         services.AddSingleton(provider =>
         {
             var options = provider.GetRequiredService<IOptions<WindowOptions>>().Value;
-            return SceneWindow.Create(options, provider.GetRequiredService<INavigationMediator>());
+            return SceneWindow.Create(
+                options,
+                provider.GetRequiredService<INavigationMediator>(),
+                provider.GetRequiredService<IViewInputRouter>()
+            );
         });
         services.AddSingleton<IOpenGlContext>(provider =>
             provider.GetRequiredService<SceneWindow>()
@@ -68,8 +70,18 @@ public static class ConfigureServices
         services.AddSingleton<IRenderSurface>(provider =>
             provider.GetRequiredService<SkiaOpenGlSurface>()
         );
+
+        services.AddSingleton<IView, LoadingView>();
         services.AddSingleton<IView, MapView>();
-        services.AddSingleton<IView, SettingsView>();
+        services.AddSingleton<MaintenanceView>();
+        services.AddSingleton<IView>(provider => provider.GetRequiredService<MaintenanceView>());
+        services.AddSingleton<IViewInputRouter, ViewInputRouter>();
+        services.AddSingleton<ISceneRenderer, DefaultSceneRenderer>();
+        services.AddSingleton<MaintenanceController>();
+        services.AddSingleton<IMessageSubscription>(provider =>
+            provider.GetRequiredService<MaintenanceController>()
+        );
+        services.AddSingleton<IMessageSubscription, ViewTransitionSubscriber>();
         services.AddSingleton<ViewCatalog>();
         services.AddSingleton<ISceneSource, ActiveViewSceneSource>();
         services.AddHostedService<RenderingWorker>();

@@ -7,6 +7,7 @@ SESSION_FILE="$STATE_DIR/.session"
 TITLE="${VERIFY_TITLE:-GeoTools verify}"
 TIMEOUT="${VERIFY_TIMEOUT:-90}"
 APP_DLL="$REPO_ROOT/src/GeoTools.Launcher/bin/Debug/net10.0/GeoTools.Launcher.dll"
+GEODATA_ROOT="${VERIFY_GEODATA_ROOT:-$REPO_ROOT/geodata}"
 
 die() {
   echo "$*" >&2
@@ -60,12 +61,14 @@ doctor() {
   (cd "$REPO_ROOT" && dotnet build geodata-tools.slnx --nologo -v quiet) ||
     die "build failed"
 
-  local borders="${VERIFY_BORDERS_DIR:-$REPO_ROOT/geodata/borders}"
+  local borders="$GEODATA_ROOT/borders"
   if [ -d "$borders" ]; then
     echo "borders: $(find "$borders" -maxdepth 1 -name '*.geojsonseq' | wc -l) files in $borders"
   else
     echo "borders: missing $borders (the Map view will show its no-data message)"
   fi
+  echo "geodata: $GEODATA_ROOT"
+  echo "database: ${VERIFY_DB:-<run>/state.db}"
 
   echo "doctor: ok"
 }
@@ -103,14 +106,36 @@ start() {
     die "Xvfb did not start on $XDISPLAY"
   fi
 
-  local borders="${VERIFY_BORDERS_DIR:-$REPO_ROOT/geodata/borders}"
+  DB_PATH="${VERIFY_DB:-$RUN_DIR/state.db}"
   local -a app_env=(
     "DISPLAY=$XDISPLAY"
     "Window__Title=$TITLE"
-    "Map__BordersDirectory=$borders"
+    "Storage__DatabasePath=$DB_PATH"
+    "Geodata__RootPath=$GEODATA_ROOT"
   )
   if [ -n "${VERIFY_ADMIN_LEVEL:-}" ]; then
     app_env+=("Map__AdminLevels__0=$VERIFY_ADMIN_LEVEL")
+  fi
+  if [ "${VERIFY_NO_PULL:-0}" = "1" ]; then
+    app_env+=("Features__GeodataAutoPull=false")
+  fi
+  if [ "${VERIFY_RUN_ON_STARTUP:-1}" = "0" ]; then
+    app_env+=("Geodata__RunOnStartup=false")
+  fi
+  if [ -n "${VERIFY_SOURCE_BASE_URL:-}" ]; then
+    app_env+=("Geodata__SourceBaseUrl=$VERIFY_SOURCE_BASE_URL")
+  fi
+  if [ -n "${VERIFY_REGIONS:-}" ]; then
+    local index=0
+    local region
+    IFS=',' read -r -a regions <<< "$VERIFY_REGIONS"
+    for region in "${regions[@]}"; do
+      app_env+=("Geodata__Regions__$index=$region")
+      index=$((index + 1))
+    done
+  fi
+  if [ -n "${VERIFY_OSMIUM:-}" ]; then
+    app_env+=("Geodata__OsmiumPath=$VERIFY_OSMIUM")
   fi
 
   (
@@ -122,7 +147,9 @@ start() {
   local ready=""
   for i in $(seq 1 "$TIMEOUT"); do
     if grep -q 'Window "' "$RUN_DIR/app.log" 2>/dev/null &&
-      grep -q 'Composed map' "$RUN_DIR/app.log" 2>/dev/null; then
+      { grep -q 'Showing the loading view' "$RUN_DIR/app.log" 2>/dev/null ||
+        grep -q 'Composed map' "$RUN_DIR/app.log" 2>/dev/null ||
+        grep -q 'finished with' "$RUN_DIR/app.log" 2>/dev/null; }; then
       ready="yes"
       break
     fi
@@ -147,11 +174,13 @@ start() {
     printf 'APP_PID=%q\n' "$APP_PID"
     printf 'XVFB_PID=%q\n' "$XVFB_PID"
     printf 'TITLE=%q\n' "$TITLE"
+    printf 'DB_PATH=%q\n' "$DB_PATH"
   } >"$SESSION_FILE"
 
   echo "session: $RUN_DIR"
   echo "display: $XDISPLAY"
   echo "title: $TITLE"
+  echo "database: $DB_PATH"
   echo "log: $RUN_DIR/app.log"
 }
 
@@ -182,6 +211,27 @@ shot() {
   echo "$RUN_DIR/$name.png"
 }
 
+wait_for() {
+  [ "$#" -gt 0 ] || die "usage: $0 wait <pattern> [timeout-seconds]"
+  load_session
+  local pattern="$1"
+  local timeout="${2:-60}"
+  local i
+  for i in $(seq 1 "$timeout"); do
+    if grep -qE "$pattern" "$RUN_DIR/app.log" 2>/dev/null; then
+      echo "seen: $pattern"
+      return 0
+    fi
+    if ! is_alive "$APP_PID"; then
+      tail -20 "$RUN_DIR/app.log" >&2
+      die "the app exited while waiting for: $pattern"
+    fi
+    sleep 1
+  done
+  tail -20 "$RUN_DIR/app.log" >&2
+  die "timed out after ${timeout}s waiting for: $pattern"
+}
+
 status() {
   load_session
   local state="stopped"
@@ -191,6 +241,7 @@ status() {
   echo "state: $state"
   echo "display: $XDISPLAY"
   echo "title: $TITLE"
+  echo "database: $DB_PATH"
   echo "evidence: $RUN_DIR"
 }
 
@@ -215,13 +266,20 @@ usage: $0 <command>
   start     start Xvfb and the app, then wait for the ready log lines
   keys ...  send keys to the app window (1, 2, Tab, shift+Tab, Escape)
   shot ...  capture the root window to the run directory
+  wait ...  wait for a log pattern, then report it
   status    report the session state and evidence directory
   stop      kill the app and Xvfb this session started
 
 environment:
   VERIFY_TITLE        window title (default: $TITLE)
   VERIFY_TIMEOUT      readiness timeout in seconds (default: $TIMEOUT)
-  VERIFY_BORDERS_DIR  borders directory (default: <repo>/geodata/borders)
+  VERIFY_GEODATA_ROOT geodata root (default: <repo>/geodata)
+  VERIFY_DB           state database (default: <run>/state.db)
+  VERIFY_NO_PULL      set to 1 to disable automatic downloads
+  VERIFY_RUN_ON_STARTUP set to 0 to skip the startup run
+  VERIFY_SOURCE_BASE_URL geodata source base URL (default: geofabrik)
+  VERIFY_REGIONS      comma-separated region names for the pipeline
+  VERIFY_OSMIUM       osmium executable (default: osmium)
   VERIFY_ADMIN_LEVEL  sets Map:AdminLevels to this single level
 EOF
 }
@@ -237,6 +295,10 @@ case "$command" in
   shot)
     shift
     shot "$@"
+    ;;
+  wait)
+    shift
+    wait_for "$@"
     ;;
   status) status ;;
   stop) stop ;;

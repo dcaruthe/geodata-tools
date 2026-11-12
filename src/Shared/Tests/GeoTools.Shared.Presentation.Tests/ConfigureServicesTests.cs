@@ -10,16 +10,7 @@ namespace GeoTools.Shared.Presentation.Tests;
 public sealed class ConfigureServicesTests
 {
     [Fact]
-    public void Map_options_reject_a_blank_borders_directory()
-    {
-        var act = () =>
-            WithOptions<MapOptions>(options => options.BordersDirectory = " ", _ => { });
-
-        act.Should().Throw<OptionsValidationException>().WithMessage("*Borders directory*");
-    }
-
-    [Fact]
-    public void Map_options_reject_missing_admin_levels()
+    public void Map_options_reject_null_admin_levels()
     {
         var act = () => WithOptions<MapOptions>(options => options.AdminLevels = null!, _ => { });
 
@@ -27,12 +18,11 @@ public sealed class ConfigureServicesTests
     }
 
     [Fact]
-    public void Map_options_reject_a_negative_simplify_tolerance()
+    public void Map_options_reject_a_negative_admin_level()
     {
-        var act = () =>
-            WithOptions<MapOptions>(options => options.SimplifyToleranceDegrees = -1, _ => { });
+        var act = () => WithOptions<MapOptions>(options => options.AdminLevels = [-1], _ => { });
 
-        act.Should().Throw<OptionsValidationException>().WithMessage("*Simplify tolerance*");
+        act.Should().Throw<OptionsValidationException>().WithMessage("*positive*");
     }
 
     [Fact]
@@ -58,7 +48,6 @@ public sealed class ConfigureServicesTests
             _ => { },
             options =>
             {
-                options.BordersDirectory.Should().Be("geodata/borders");
                 options.AdminLevels.Should().Equal(2);
             }
         );

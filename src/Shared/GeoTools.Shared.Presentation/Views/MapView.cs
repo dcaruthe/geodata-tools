@@ -1,16 +1,20 @@
 using System.Diagnostics;
 using GeoTools.Shared.Application.Geospatial;
-using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.Scenes;
+using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Domain.Primatives;
 using GeoTools.Shared.Presentation.Components;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace GeoTools.Shared.Presentation.Views;
 
-internal sealed class MapView : IView
+internal sealed class MapView(
+    IBorderGeometryStore geometryStore,
+    ISettingsStore settings,
+    IProgressStore progress,
+    ILogger<MapView> logger
+) : IView
 {
     private static readonly Color BorderColor = new(200, 205, 215);
     private static readonly Color HintColor = new(150, 150, 150);
@@ -23,53 +27,43 @@ internal sealed class MapView : IView
         size => new Point(16, size.Height - 16)
     );
 
-    private readonly IOptionsMonitor<MapOptions> _options;
-    private readonly ILogger<MapView> _logger;
-    private readonly BorderGeometry _borders;
-    private readonly int[] _availableAdminLevels;
-
     private SceneDto? _cachedScene;
     private ViewSize _cachedSize;
-    private int[] _cachedAdminLevels = [];
-    private MapOptions? _lastGoodOptions;
-
-    public MapView(
-        IBorderSource borderSource,
-        IOptionsMonitor<MapOptions> options,
-        ILogger<MapView> logger
-    )
-    {
-        _options = options;
-        _logger = logger;
-        _borders = borderSource.Load();
-        _availableAdminLevels = _borders
-            .Polylines.Select(polyline => polyline.AdminLevel)
-            .Distinct()
-            .Order()
-            .ToArray();
-    }
+    private long _cachedGeometryVersion;
+    private long _cachedSettingsVersion;
+    private bool _cachedGrid;
+    private bool _cachedCrosshair;
 
     public ViewId Id => ViewId.Map;
 
     public SceneDto Compose(ViewSize size)
     {
-        var options = CurrentOptions();
-        var adminLevels = Normalize(options.AdminLevels);
+        var geometryVersion = geometryStore.Version;
+        var settingsVersion = settings.Version;
+        var grid = settings.IsEnabled(FeatureFlag.MapGrid);
+        var crosshair = settings.IsEnabled(FeatureFlag.MapCrosshair);
 
         if (
             _cachedScene is not null
             && size == _cachedSize
-            && adminLevels.SequenceEqual(_cachedAdminLevels)
+            && geometryVersion == _cachedGeometryVersion
+            && settingsVersion == _cachedSettingsVersion
+            && grid == _cachedGrid
+            && crosshair == _cachedCrosshair
         )
             return _cachedScene;
 
         var stopwatch = Stopwatch.StartNew();
-        var scene = ComposeScene(size, adminLevels, options.BordersDirectory);
+        var adminLevels = Normalize(settings.Map.AdminLevels);
+        var scene = ComposeScene(size, adminLevels, grid, crosshair);
         _cachedScene = scene;
         _cachedSize = size;
-        _cachedAdminLevels = adminLevels;
+        _cachedGeometryVersion = geometryVersion;
+        _cachedSettingsVersion = settingsVersion;
+        _cachedGrid = grid;
+        _cachedCrosshair = crosshair;
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Composed map at {Width}x{Height} with admin levels {AdminLevels}: {ShapeCount} shapes in {ElapsedMilliseconds} ms",
             size.Width,
             size.Height,
@@ -81,66 +75,48 @@ internal sealed class MapView : IView
         return scene;
     }
 
-    private SceneDto ComposeScene(ViewSize size, int[] adminLevels, string bordersDirectory)
+    private SceneDto ComposeScene(ViewSize size, int[] adminLevels, bool grid, bool crosshair)
     {
         var composition = new ViewComposition(size, Color.Black);
-        Grid.Compose(composition);
-        ComposeBorders(composition, size, adminLevels, bordersDirectory);
-        Crosshair.Compose(composition);
+        if (grid)
+            Grid.Compose(composition);
+        ComposeBorders(composition, size, adminLevels);
+        if (crosshair)
+            Crosshair.Compose(composition);
         KeyHint.Compose(composition);
         return composition.Build();
     }
 
-    private void ComposeBorders(
-        ViewComposition composition,
-        ViewSize size,
-        int[] adminLevels,
-        string bordersDirectory
-    )
+    private void ComposeBorders(ViewComposition composition, ViewSize size, int[] adminLevels)
     {
-        if (_borders.Polylines.Count == 0)
+        var borders = geometryStore.Geometry;
+        var available = geometryStore.AvailableAdminLevels;
+
+        if (borders.Polylines.Count == 0)
         {
-            composition.Add(
-                new TextDto(
-                    new Point(24, 48),
-                    $"No border data in {bordersDirectory}. Run scripts/extract_borders.sh.",
-                    16,
-                    BorderColor
-                )
-            );
+            AddMessage(composition, EmptyMessage());
             return;
         }
 
         if (adminLevels.Length == 0)
         {
-            composition.Add(
-                new TextDto(
-                    new Point(24, 48),
-                    "No admin levels selected. Set Map:AdminLevels in appsettings.json.",
-                    16,
-                    BorderColor
-                )
-            );
+            AddMessage(composition, "No admin levels selected. Change them in Maintenance (2).");
             return;
         }
 
-        if (!adminLevels.Any(_availableAdminLevels.Contains))
+        if (!adminLevels.Any(available.Contains))
         {
-            composition.Add(
-                new TextDto(
-                    new Point(24, 48),
-                    $"No borders at admin levels {string.Join(",", adminLevels)}. Extracted: {string.Join(",", _availableAdminLevels)}.",
-                    16,
-                    BorderColor
-                )
+            AddMessage(
+                composition,
+                $"No borders at admin levels {string.Join(",", adminLevels)}. Extracted: {string.Join(",", available)}."
             );
             return;
         }
 
-        var viewport = MapViewport.Fit(_borders.Bounds, size.Width, size.Height, 24f);
+        var viewport = MapViewport.Fit(borders.Bounds, size.Width, size.Height, 24f);
         foreach (
             var polyline in MapGeometry.Project(
-                _borders.Polylines,
+                borders.Polylines,
                 adminLevels.ToHashSet(),
                 viewport
             )
@@ -153,21 +129,22 @@ internal sealed class MapView : IView
         }
     }
 
-    private MapOptions CurrentOptions()
+    private string EmptyMessage()
     {
-        try
+        var snapshot = progress.Current;
+        return snapshot.Phase switch
         {
-            return _lastGoodOptions = _options.CurrentValue;
-        }
-        catch (Exception exception)
-            when (exception is OptionsValidationException or InvalidOperationException)
-        {
-            _logger.LogWarning(exception, "Ignoring invalid map options.");
-            return _lastGoodOptions ?? new MapOptions();
-        }
+            BootstrapPhase.Running => "Loading border data. Press 2 for maintenance.",
+            BootstrapPhase.Failed =>
+                $"No border data. {snapshot.Error ?? "The last run failed."} Press 2 for maintenance.",
+            _ => "No border data. Press 2 for maintenance and run Rebuild borders.",
+        };
     }
 
-    private static int[] Normalize(int[]? adminLevels) =>
+    private static void AddMessage(ViewComposition composition, string message) =>
+        composition.Add(new TextDto(new Point(24, 48), message, 16, BorderColor));
+
+    private static int[] Normalize(IReadOnlyList<int>? adminLevels) =>
         adminLevels is null
             ? []
             : adminLevels.Where(level => level > 0).Distinct().Order().ToArray();

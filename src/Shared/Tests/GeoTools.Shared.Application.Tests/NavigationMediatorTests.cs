@@ -6,11 +6,11 @@ namespace GeoTools.Shared.Application.Tests;
 public sealed class NavigationMediatorTests
 {
     [Fact]
-    public void Starts_on_the_map_view()
+    public void Starts_on_the_loading_view()
     {
         var mediator = new NavigationMediator();
 
-        mediator.ActiveView.Should().Be(ViewId.Map);
+        mediator.ActiveView.Should().Be(ViewId.Loading);
     }
 
     [Fact]
@@ -20,12 +20,12 @@ public sealed class NavigationMediatorTests
         var changes = new List<ViewChangedEventArgs>();
         mediator.ViewChanged += (_, args) => changes.Add(args);
 
-        mediator.NavigateTo(ViewId.Settings);
+        mediator.NavigateTo(ViewId.Maintenance);
 
         changes.Should().ContainSingle();
-        changes[0].Previous.Should().Be(ViewId.Map);
-        changes[0].Current.Should().Be(ViewId.Settings);
-        mediator.ActiveView.Should().Be(ViewId.Settings);
+        changes[0].Previous.Should().Be(ViewId.Loading);
+        changes[0].Current.Should().Be(ViewId.Maintenance);
+        mediator.ActiveView.Should().Be(ViewId.Maintenance);
     }
 
     [Fact]
@@ -35,16 +35,16 @@ public sealed class NavigationMediatorTests
         var changes = new List<ViewChangedEventArgs>();
         mediator.ViewChanged += (_, args) => changes.Add(args);
 
-        mediator.NavigateTo(ViewId.Map);
+        mediator.NavigateTo(ViewId.Loading);
 
         changes.Should().BeEmpty();
     }
 
     [Fact]
-    public void NextView_wraps_past_the_last_view_to_the_first()
+    public void NextView_wraps_past_the_last_navigable_view_to_the_first()
     {
         var mediator = new NavigationMediator();
-        mediator.NavigateTo(ViewId.Settings);
+        mediator.NavigateTo(ViewId.Maintenance);
 
         mediator.NextView();
 
@@ -52,13 +52,24 @@ public sealed class NavigationMediatorTests
     }
 
     [Fact]
-    public void PreviousView_wraps_from_the_first_view_to_the_last()
+    public void PreviousView_wraps_from_the_first_navigable_view_to_the_last()
     {
         var mediator = new NavigationMediator();
+        mediator.NavigateTo(ViewId.Map);
 
         mediator.PreviousView();
 
-        mediator.ActiveView.Should().Be(ViewId.Settings);
+        mediator.ActiveView.Should().Be(ViewId.Maintenance);
+    }
+
+    [Fact]
+    public void NextView_from_loading_goes_to_the_map()
+    {
+        var mediator = new NavigationMediator();
+
+        mediator.NextView();
+
+        mediator.ActiveView.Should().Be(ViewId.Map);
     }
 
     [Fact]

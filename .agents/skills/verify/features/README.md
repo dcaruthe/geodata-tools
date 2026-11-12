@@ -5,17 +5,18 @@ This directory is the maintained source for verifying the user-facing behavior o
 ## Baseline preconditions
 
 - Start the session with `.agents/skills/verify/scripts/app-session.sh start`.
-- The repo contains `geodata/borders/*.geojsonseq`, built by `scripts/extract_borders.sh`.
-- `doctor` reports `ok` and the expected border count.
+- `doctor` reports `ok`, a border count, and the geodata root.
+- Every run gets a fresh state database at `<run>/state.db`. The first startup parses the borders and writes the geometry cache.
 - Never drive an app or display that this verification run did not start.
+- Never force a repull against the real geofabrik source. Use the fixture root and the local server recipe in `geodata-pipeline.md`.
 
 ## Driving conventions
 
 - Start every recipe from the Map view unless its preconditions say otherwise.
-- Send keys with `app-session.sh keys`; wait for the matching log line before capturing.
+- Send keys with `app-session.sh keys`; wait with `app-session.sh wait '<pattern>'` before capturing.
 - Capture screenshots with `app-session.sh shot`.
 - Treat every command as literal.
-- Restore a configuration override by starting a fresh session. Do not edit `appsettings.json` for a proof.
+- Restore a configuration override by starting a fresh session with a fresh `VERIFY_DB`. Do not edit `appsettings.json` for a proof.
 - Keep evidence under `.audit/verify/<run>/`; cleanup keeps that directory.
 
 ## Proof and skip reporting
@@ -27,7 +28,8 @@ This directory is the maintained source for verifying the user-facing behavior o
 
 ## Features
 
-- [Map view](./map-view.md) covers border rendering, the grid, the crosshair, the key hint, and switching to Map.
-- [Settings view](./settings-view.md) covers the window title and size labels and switching between views.
-- [Admin level configuration](./admin-level-config.md) covers `Map:AdminLevels` selection and the no-levels and no-data messages.
-- [Border extraction](./border-extraction.md) covers the CLI pipeline, its levels sidecar, and its skip and failure paths.
+- [Loading screen](./loading-screen.md) covers startup, the spinner, progress, the transition to the map, entering Maintenance during a run, and a failed bootstrap.
+- [Map view](./map-view.md) covers border rendering, the grid and crosshair flags, the key hint, the no-data state, and switching views.
+- [Maintenance view](./maintenance-view.md) covers state, runtime settings, feature flags, artifact status, actions, confirmations, cancel, and reset.
+- [Admin level configuration](./admin-level-config.md) covers display levels at runtime, extraction levels, the empty selection, and the missing-level message.
+- [Geodata pipeline](./geodata-pipeline.md) covers adoption, download, extraction, the geometry cache, skip paths, failure, and the headless CLI.

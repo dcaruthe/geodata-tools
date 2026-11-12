@@ -2,11 +2,12 @@ namespace GeoTools.Shared.Application.Views;
 
 internal sealed class NavigationMediator : INavigationMediator
 {
+    private static readonly ViewId[] Navigable = [ViewId.Map, ViewId.Maintenance];
     private readonly List<ViewId> _order;
 
-    public NavigationMediator(ViewId initial = ViewId.Map, IReadOnlyList<ViewId>? order = null)
+    public NavigationMediator(ViewId initial = ViewId.Loading, IReadOnlyList<ViewId>? order = null)
     {
-        _order = order is null ? [.. Enum.GetValues<ViewId>()] : [.. order];
+        _order = order is null ? [.. Navigable] : [.. order];
         ActiveView = initial;
     }
 
@@ -35,6 +36,9 @@ internal sealed class NavigationMediator : INavigationMediator
     private ViewId Step(int delta)
     {
         var index = _order.IndexOf(ActiveView);
+        if (index < 0)
+            return _order[0];
+
         return _order[(index + delta + _order.Count) % _order.Count];
     }
 }

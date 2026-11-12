@@ -1,6 +1,10 @@
+using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Presentation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+
+if (args.Length > 0 && args[0] == "--geodata")
+    return await HeadlessGeodataRunner.RunAsync(args[1..]);
 
 var builder = Host.CreateApplicationBuilder(
     new HostApplicationBuilderSettings { Args = args, ContentRootPath = AppContext.BaseDirectory }
@@ -14,4 +18,6 @@ builder.Services.Configure<ConsoleLifetimeOptions>(options =>
 builder.Services.SetupPresentationLayer();
 
 var host = builder.Build();
+await host.Services.GetRequiredService<IStateInitializer>().InitializeAsync();
 await host.RunAsync();
+return 0;
