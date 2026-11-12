@@ -104,8 +104,5 @@ public static class MapGeometry
 
             ring.Add(points[index]);
         }
-
-        if (ring.Count > 1)
-            yield return (ring, false);
     }
 }

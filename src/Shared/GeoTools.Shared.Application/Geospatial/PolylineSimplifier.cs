@@ -14,8 +14,6 @@ public static class PolylineSimplifier
             return SimplifyOpen(points, tolerance);
 
         var farthest = FindFarthest(points);
-        if (farthest <= 0 || farthest >= points.Count - 1)
-            return DropIfDegenerate(SimplifyOpen(points, tolerance));
 
         var start = SimplifyOpen(points.Take(farthest + 1).ToArray(), tolerance);
         var end = SimplifyOpen(points.Skip(farthest).ToArray(), tolerance);
@@ -23,9 +21,6 @@ public static class PolylineSimplifier
         var ring = new List<GeoPoint>(start.Count + end.Count - 1);
         ring.AddRange(start);
         ring.AddRange(end.Skip(1));
-
-        if (ring[^1] != ring[0])
-            ring.Add(ring[0]);
 
         return ring.Distinct().Count() < 3 ? [] : ring;
     }
@@ -39,8 +34,6 @@ public static class PolylineSimplifier
             return SimplifyOpen(points, tolerance);
 
         var farthest = FindFarthest(points);
-        if (farthest <= 0 || farthest >= points.Count - 1)
-            return DropIfDegenerate(SimplifyOpen(points, tolerance));
 
         var start = SimplifyOpen(points.Take(farthest + 1).ToArray(), tolerance);
         var end = SimplifyOpen(points.Skip(farthest).ToArray(), tolerance);
@@ -48,9 +41,6 @@ public static class PolylineSimplifier
         var ring = new List<Point>(start.Length + end.Length - 1);
         ring.AddRange(start);
         ring.AddRange(end.Skip(1));
-
-        if (ring[^1] != ring[0])
-            ring.Add(ring[0]);
 
         return ring.Distinct().Count() < 3 ? [] : ring.ToArray();
     }
@@ -147,12 +137,6 @@ public static class PolylineSimplifier
 
         return simplified.ToArray();
     }
-
-    private static IReadOnlyList<GeoPoint> DropIfDegenerate(IReadOnlyList<GeoPoint> points) =>
-        points.Distinct().Count() < 3 ? [] : points;
-
-    private static Point[] DropIfDegenerate(Point[] points) =>
-        points.Distinct().Count() < 3 ? [] : points;
 
     private static int FindFarthest(IReadOnlyList<GeoPoint> points)
     {
