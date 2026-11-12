@@ -15,4 +15,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Shared\GeoTools.Shared.Presentation\GeoTools.Shared.Presentation.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

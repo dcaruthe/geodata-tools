@@ -3,6 +3,7 @@ using GeoTools.Shared.Application.Scenes;
 using GeoTools.Shared.Infrastructure;
 using GeoTools.Shared.Infrastructure.Rendering.OpenGl;
 using GeoTools.Shared.Presentation.Controls;
+using GeoTools.Shared.Presentation.Options;
 using GeoTools.Shared.Presentation.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,17 +18,21 @@ public static class ConfigureServices
         services.SetupInfrastructureLayer();
 
         services
-            .AddOptions<RenderingOptions>()
-            .Configure<IConfiguration>((options, configuration) => configuration.Bind(options))
+            .AddOptions<WindowOptions>()
+            .Configure<IConfiguration>(
+                (options, configuration) =>
+                    configuration.GetSection(WindowOptions.SectionName).Bind(options)
+            )
+            .Validate(o => !string.IsNullOrWhiteSpace(o.Title), "Window title is required.")
             .Validate(
-                options => options.Width > 0 && options.Height > 0,
-                "Rendering width and height must be positive."
+                o => o.Width > 0 && o.Height > 0,
+                "Window width and height must be positive."
             );
 
         services.AddSingleton(provider =>
         {
-            var options = provider.GetRequiredService<IOptions<RenderingOptions>>().Value;
-            return SceneWindow.Create(options.Width, options.Height);
+            var options = provider.GetRequiredService<IOptions<WindowOptions>>().Value;
+            return SceneWindow.Create(options);
         });
         services.AddSingleton<IOpenGlContext>(provider =>
             provider.GetRequiredService<SceneWindow>()
@@ -38,7 +43,7 @@ public static class ConfigureServices
         );
         services.AddSingleton(provider =>
         {
-            var options = provider.GetRequiredService<IOptions<RenderingOptions>>().Value;
+            var options = provider.GetRequiredService<IOptions<WindowOptions>>().Value;
             return DemoScene.Create(options.Width, options.Height);
         });
         services.AddHostedService<RenderingWorker>();

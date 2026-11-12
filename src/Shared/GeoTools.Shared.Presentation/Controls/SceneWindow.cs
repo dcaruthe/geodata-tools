@@ -1,6 +1,7 @@
 using GeoTools.Shared.Application.Abstractions.Graphics;
 using GeoTools.Shared.Application.Rendering;
 using GeoTools.Shared.Application.Scenes;
+using GeoTools.Shared.Presentation.Options;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
@@ -14,22 +15,22 @@ public sealed class SceneWindow : GameWindow, IOpenGlContext
     private SceneDto? _scene;
     private volatile bool _closeRequested;
 
-    private SceneWindow(int width, int height)
+    private SceneWindow(WindowOptions options)
         : base(
             GameWindowSettings.Default,
             new NativeWindowSettings
             {
-                ClientSize = new Vector2i(width, height),
-                Title = "GeoTools scene",
+                ClientSize = new Vector2i(options.Width, options.Height),
+                Title = options.Title,
                 APIVersion = new Version(3, 3),
                 Profile = ContextProfile.Core,
             }
         ) { }
 
-    public static SceneWindow Create(int width, int height)
+    public static SceneWindow Create(WindowOptions options)
     {
         PreferX11();
-        return new SceneWindow(width, height);
+        return new SceneWindow(options);
     }
 
     // GLFW selects Wayland by default, and its Wayland path loads libdecor, which loads GTK when
