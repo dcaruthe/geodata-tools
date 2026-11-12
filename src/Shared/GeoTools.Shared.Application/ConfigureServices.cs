@@ -1,4 +1,5 @@
 using GeoTools.Shared.Application.Rendering;
+using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Domain;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,6 +11,7 @@ public static class ConfigureServices
     {
         services.SetupDomainLayer();
         services.AddSingleton<ISceneRenderer, DefaultSceneRenderer>();
+        services.AddSingleton<INavigationMediator>(_ => new NavigationMediator());
         return services;
     }
 }
