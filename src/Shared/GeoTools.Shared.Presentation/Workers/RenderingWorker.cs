@@ -19,16 +19,14 @@ internal sealed class RenderingWorker(
 {
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        window.SetScene(
-            renderer,
-            source.Compose(new ViewSize(window.ClientSize.X, window.ClientSize.Y))
-        );
+        window.SetSceneSource(renderer, source);
         logger.LogInformation(
             "Window \"{Title}\" {Width}x{Height}. Close the window or press Ctrl+C to exit.",
             options.Value.Title,
             options.Value.Width,
             options.Value.Height
         );
+        logger.LogInformation("Keys: 1 map, 2 settings, Tab next, Esc close.");
 
         using var closeOnStop = cancellationToken.Register(window.RequestClose);
 

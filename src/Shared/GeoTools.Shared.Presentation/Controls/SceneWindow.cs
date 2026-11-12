@@ -1,7 +1,8 @@
 using GeoTools.Shared.Application.Abstractions.Graphics;
 using GeoTools.Shared.Application.Rendering;
-using GeoTools.Shared.Application.Scenes;
+using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Presentation.Options;
+using GeoTools.Shared.Presentation.Views;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
@@ -11,11 +12,12 @@ namespace GeoTools.Shared.Presentation.Controls;
 
 public sealed class SceneWindow : GameWindow, IOpenGlContext
 {
+    private readonly INavigationMediator _mediator;
     private ISceneRenderer? _renderer;
-    private SceneDto? _scene;
+    private ISceneSource? _source;
     private volatile bool _closeRequested;
 
-    private SceneWindow(WindowOptions options)
+    private SceneWindow(WindowOptions options, INavigationMediator mediator)
         : base(
             GameWindowSettings.Default,
             new NativeWindowSettings
@@ -25,12 +27,15 @@ public sealed class SceneWindow : GameWindow, IOpenGlContext
                 APIVersion = new Version(3, 3),
                 Profile = ContextProfile.Core,
             }
-        ) { }
+        )
+    {
+        _mediator = mediator;
+    }
 
-    public static SceneWindow Create(WindowOptions options)
+    public static SceneWindow Create(WindowOptions options, INavigationMediator mediator)
     {
         PreferX11();
-        return new SceneWindow(options);
+        return new SceneWindow(options, mediator);
     }
 
     // GLFW selects Wayland by default, and its Wayland path loads libdecor, which loads GTK when
@@ -46,10 +51,10 @@ public sealed class SceneWindow : GameWindow, IOpenGlContext
             GLFW.InitHint(InitHintPlatform.Platform, Platform.X11);
     }
 
-    public void SetScene(ISceneRenderer renderer, SceneDto scene)
+    public void SetSceneSource(ISceneRenderer renderer, ISceneSource source)
     {
         _renderer = renderer;
-        _scene = scene;
+        _source = source;
     }
 
     internal void RequestClose() => _closeRequested = true;
@@ -64,10 +69,32 @@ public sealed class SceneWindow : GameWindow, IOpenGlContext
 
     protected override void OnRenderFrame(FrameEventArgs args)
     {
-        if (_renderer is not null && _scene is not null)
-            _renderer.Render(_scene);
+        if (_renderer is not null && _source is not null)
+            _renderer.Render(_source.Compose(new ViewSize(ClientSize.X, ClientSize.Y)));
 
         base.OnRenderFrame(args);
+    }
+
+    protected override void OnKeyDown(KeyboardKeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Keys.Escape:
+                Close();
+                break;
+            case Keys.Tab:
+                if (e.Modifiers.HasFlag(KeyModifiers.Shift))
+                    _mediator.PreviousView();
+                else
+                    _mediator.NextView();
+                break;
+            default:
+                if (ViewShortcuts.TryGetView(e.Key, out var view))
+                    _mediator.NavigateTo(view);
+                break;
+        }
+
+        base.OnKeyDown(e);
     }
 
     (int, int) IOpenGlContext.Size => (ClientSize.X, ClientSize.Y);

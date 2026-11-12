@@ -1,4 +1,5 @@
 using GeoTools.Shared.Application.Abstractions.Graphics;
+using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Infrastructure;
 using GeoTools.Shared.Infrastructure.Rendering.OpenGl;
 using GeoTools.Shared.Presentation.Controls;
@@ -32,7 +33,7 @@ public static class ConfigureServices
         services.AddSingleton(provider =>
         {
             var options = provider.GetRequiredService<IOptions<WindowOptions>>().Value;
-            return SceneWindow.Create(options);
+            return SceneWindow.Create(options, provider.GetRequiredService<INavigationMediator>());
         });
         services.AddSingleton<IOpenGlContext>(provider =>
             provider.GetRequiredService<SceneWindow>()
