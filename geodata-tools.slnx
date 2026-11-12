@@ -1,2 +1,17 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GeoTools.Launcher/GeoTools.Launcher.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/GeoTools.Shared.Application/GeoTools.Shared.Application.csproj" />
+    <Project Path="src/Shared/GeoTools.Shared.Domain/GeoTools.Shared.Domain.csproj" />
+    <Project Path="src/Shared/GeoTools.Shared.Infrastructure/GeoTools.Shared.Infrastructure.csproj" />
+    <Project Path="src/Shared/GeoTools.Shared.Presentation/GeoTools.Shared.Presentation.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/Tests/">
+    <Project Path="src/Shared/Tests/GeoTools.Shared.Application.Tests/GeoTools.Shared.Application.Tests.csproj" />
+    <Project Path="src/Shared/Tests/GeoTools.Shared.Domain.Tests/GeoTools.Shared.Domain.Tests.csproj" />
+    <Project Path="src/Shared/Tests/GeoTools.Shared.Infrastructure.Tests/GeoTools.Shared.Infrastructure.Tests.csproj" />
+    <Project Path="src/Shared/Tests/GeoTools.Shared.Presentation.Tests/GeoTools.Shared.Presentation.Tests.csproj" />
+  </Folder>
 </Solution>
