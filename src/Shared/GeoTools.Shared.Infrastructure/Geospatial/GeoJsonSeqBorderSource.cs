@@ -54,63 +54,30 @@ internal sealed class GeoJsonSeqBorderSource : IBorderSource
         }
 
         var tolerance = _options.CurrentValue.SimplifyToleranceDegrees;
+        var results = new FileResult[files.Length];
+
+        // Each continent file is independent, so parse and simplify them in
+        // parallel. Merge in file order afterwards to keep the result deterministic.
+        Parallel.For(0, files.Length, index => results[index] = LoadFile(files[index], tolerance));
+
         var polylines = new List<GeoPolyline>();
         var seenIds = new HashSet<string>(StringComparer.Ordinal);
         var featureCount = 0;
         var skippedFeatures = 0;
         var skippedGeometry = 0;
 
-        foreach (var file in files)
+        foreach (var result in results)
         {
-            try
+            featureCount += result.FeatureCount;
+            skippedFeatures += result.SkippedFeatures;
+            skippedGeometry += result.SkippedGeometry;
+
+            foreach (var feature in result.Features)
             {
-                foreach (var rawLine in File.ReadLines(file))
-                {
-                    var line = rawLine
-                        .TrimStart(ByteOrderMark)
-                        .Trim()
-                        .TrimStart(RecordSeparator)
-                        .Trim();
-                    if (line.Length == 0)
-                        continue;
+                if (feature.DedupeId is not null && !seenIds.Add(feature.DedupeId))
+                    continue;
 
-                    using var document = JsonDocument.Parse(line);
-                    var feature = document.RootElement;
-
-                    if (
-                        !feature.TryGetProperty("properties", out var properties)
-                        || !TryReadAdminLevel(properties, out var adminLevel)
-                        || !feature.TryGetProperty("geometry", out var geometry)
-                        || geometry.ValueKind != JsonValueKind.Object
-                        || !TryReadGeometryType(geometry, out var geometryType)
-                    )
-                    {
-                        skippedFeatures++;
-                        continue;
-                    }
-
-                    if (
-                        geometryType is "Polygon" or "MultiPolygon"
-                        && TryReadId(properties, out var id)
-                        && !seenIds.Add(id)
-                    )
-                        continue;
-
-                    featureCount++;
-                    AddGeometry(
-                        geometry,
-                        geometryType,
-                        adminLevel,
-                        tolerance,
-                        polylines,
-                        ref skippedGeometry
-                    );
-                }
-            }
-            catch (Exception exception)
-                when (exception is IOException or UnauthorizedAccessException or JsonException)
-            {
-                _logger.LogWarning(exception, "Could not read border file {File}.", file);
+                polylines.AddRange(feature.Polylines);
             }
         }
 
@@ -141,17 +108,91 @@ internal sealed class GeoJsonSeqBorderSource : IBorderSource
         return new BorderGeometry(polylines, bounds);
     }
 
-    private static void AddGeometry(
+    private FileResult LoadFile(string file, double tolerance)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var features = new List<FeatureResult>();
+        var featureCount = 0;
+        var skippedFeatures = 0;
+        var skippedGeometry = 0;
+
+        try
+        {
+            foreach (var rawLine in File.ReadLines(file))
+            {
+                var line = rawLine
+                    .TrimStart(ByteOrderMark)
+                    .Trim()
+                    .TrimStart(RecordSeparator)
+                    .Trim();
+                if (line.Length == 0)
+                    continue;
+
+                using var document = JsonDocument.Parse(line);
+                var feature = document.RootElement;
+
+                if (
+                    !feature.TryGetProperty("properties", out var properties)
+                    || !TryReadAdminLevel(properties, out var adminLevel)
+                    || !feature.TryGetProperty("geometry", out var geometry)
+                    || geometry.ValueKind != JsonValueKind.Object
+                    || !TryReadGeometryType(geometry, out var geometryType)
+                )
+                {
+                    skippedFeatures++;
+                    continue;
+                }
+
+                featureCount++;
+
+                string? dedupeId = null;
+                if (
+                    geometryType is "Polygon" or "MultiPolygon"
+                    && TryReadId(properties, out var id)
+                )
+                    dedupeId = id;
+
+                features.Add(
+                    new FeatureResult(
+                        dedupeId,
+                        ReadGeometry(
+                            geometry,
+                            geometryType,
+                            adminLevel,
+                            tolerance,
+                            ref skippedGeometry
+                        )
+                    )
+                );
+            }
+        }
+        catch (Exception exception)
+            when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            _logger.LogWarning(exception, "Could not read border file {File}.", file);
+        }
+
+        _logger.LogInformation(
+            "Loaded border file {File}: {FeatureCount} features in {ElapsedMilliseconds} ms",
+            Path.GetFileName(file),
+            featureCount,
+            stopwatch.ElapsedMilliseconds
+        );
+
+        return new FileResult(features, featureCount, skippedFeatures, skippedGeometry);
+    }
+
+    private static List<GeoPolyline> ReadGeometry(
         JsonElement geometry,
         string geometryType,
         int adminLevel,
         double tolerance,
-        List<GeoPolyline> polylines,
         ref int skippedGeometry
     )
     {
+        var polylines = new List<GeoPolyline>();
         if (!geometry.TryGetProperty("coordinates", out var coordinates))
-            return;
+            return polylines;
 
         switch (geometryType)
         {
@@ -200,6 +241,8 @@ internal sealed class GeoJsonSeqBorderSource : IBorderSource
                     );
                 break;
         }
+
+        return polylines;
     }
 
     private static void AddPolyline(
@@ -367,4 +410,13 @@ internal sealed class GeoJsonSeqBorderSource : IBorderSource
 
         return Directory.GetCurrentDirectory();
     }
+
+    private sealed record FileResult(
+        List<FeatureResult> Features,
+        int FeatureCount,
+        int SkippedFeatures,
+        int SkippedGeometry
+    );
+
+    private sealed record FeatureResult(string? DedupeId, List<GeoPolyline> Polylines);
 }
