@@ -26,6 +26,7 @@ internal sealed class MapView : IView
     private readonly IOptionsMonitor<MapOptions> _options;
     private readonly ILogger<MapView> _logger;
     private readonly BorderGeometry _borders;
+    private readonly int[] _availableAdminLevels;
 
     private SceneDto? _cachedScene;
     private ViewSize _cachedSize;
@@ -41,6 +42,11 @@ internal sealed class MapView : IView
         _options = options;
         _logger = logger;
         _borders = borderSource.Load();
+        _availableAdminLevels = _borders
+            .Polylines.Select(polyline => polyline.AdminLevel)
+            .Distinct()
+            .Order()
+            .ToArray();
     }
 
     public ViewId Id => ViewId.Map;
@@ -111,6 +117,19 @@ internal sealed class MapView : IView
                 new TextDto(
                     new Point(24, 48),
                     "No admin levels selected. Set Map:AdminLevels in appsettings.json.",
+                    16,
+                    BorderColor
+                )
+            );
+            return;
+        }
+
+        if (!adminLevels.Any(_availableAdminLevels.Contains))
+        {
+            composition.Add(
+                new TextDto(
+                    new Point(24, 48),
+                    $"No borders at admin levels {string.Join(",", adminLevels)}. Extracted: {string.Join(",", _availableAdminLevels)}.",
                     16,
                     BorderColor
                 )

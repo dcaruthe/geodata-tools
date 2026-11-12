@@ -98,6 +98,23 @@ public sealed class MapViewTests
     }
 
     [Fact]
+    public void Compose_labels_levels_that_are_not_in_the_data()
+    {
+        var view = CreateView(
+            new FakeBorderSource(Borders()),
+            new TestOptionsMonitor<MapOptions>(new MapOptions { AdminLevels = [6] })
+        );
+
+        var scene = view.Compose(new ViewSize(800, 600));
+
+        scene
+            .Shapes.OfType<TextDto>()
+            .Should()
+            .Contain(text => text.Text.Contains("No borders at admin levels 6"));
+        scene.Shapes.OfType<PolygonDto>().Should().BeEmpty();
+    }
+
+    [Fact]
     public void Compose_labels_missing_border_data()
     {
         var view = new MapView(
