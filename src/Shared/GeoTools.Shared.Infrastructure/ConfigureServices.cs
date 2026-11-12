@@ -1,6 +1,7 @@
 using GeoTools.Shared.Application;
 using GeoTools.Shared.Application.Geodata;
 using GeoTools.Shared.Application.Geospatial;
+using GeoTools.Shared.Application.Link;
 using GeoTools.Shared.Application.Messaging;
 using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.State;
@@ -118,6 +119,22 @@ public static class ConfigureServices
             );
 
         services.AddOptions<FeaturesOptions>().BindConfiguration(FeaturesOptions.SectionName);
+
+        services
+            .AddOptions<LinkOptions>()
+            .BindConfiguration(LinkOptions.SectionName)
+            .Validate(
+                options => options.RotateSeconds >= 1,
+                "The link rotation interval must be at least one second."
+            )
+            .Validate(
+                options => options.CommandTimeoutSeconds > 0,
+                "The link command timeout must be positive."
+            )
+            .Validate(
+                options => options.HandshakeTimeoutSeconds > 0,
+                "The link handshake timeout must be positive."
+            );
 
         services.TryAddSingleton(TimeProvider.System);
 
