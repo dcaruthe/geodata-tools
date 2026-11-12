@@ -10,6 +10,8 @@ internal enum ViewKey
     Right,
     Enter,
     Backspace,
+    Home,
+    End,
 }
 
 internal interface IViewInputTarget : IView

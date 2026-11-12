@@ -126,13 +126,7 @@ start() {
     app_env+=("Geodata__SourceBaseUrl=$VERIFY_SOURCE_BASE_URL")
   fi
   if [ -n "${VERIFY_REGIONS:-}" ]; then
-    local index=0
-    local region
-    IFS=',' read -r -a regions <<< "$VERIFY_REGIONS"
-    for region in "${regions[@]}"; do
-      app_env+=("Geodata__Regions__$index=$region")
-      index=$((index + 1))
-    done
+    app_env+=("Geodata__RegionList=$VERIFY_REGIONS")
   fi
   if [ -n "${VERIFY_OSMIUM:-}" ]; then
     app_env+=("Geodata__OsmiumPath=$VERIFY_OSMIUM")

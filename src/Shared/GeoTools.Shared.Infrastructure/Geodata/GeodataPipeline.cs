@@ -153,11 +153,7 @@ internal sealed class GeodataPipeline(
         return new BootstrapOutcome(runId, RunStatus.Succeeded, null);
     }
 
-    private async Task LoadAsync(
-        RunId runId,
-        PlannedStep step,
-        CancellationToken cancellationToken
-    )
+    private async Task LoadAsync(RunId runId, PlannedStep step, CancellationToken cancellationToken)
     {
         var progress = new InlineProgress<double>(fraction =>
             Report(runId, step, new StepProgress(Math.Clamp(fraction, 0, 1)), cancellationToken)

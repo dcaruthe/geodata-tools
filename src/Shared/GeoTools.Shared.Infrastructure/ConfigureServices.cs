@@ -47,6 +47,29 @@ public static class ConfigureServices
                     var levels = section.GetSection(nameof(GeodataOptions.ExtractAdminLevels));
                     if (levels.Exists())
                         options.ExtractAdminLevels = levels.Get<int[]>() ?? [];
+
+                    if (!string.IsNullOrWhiteSpace(options.RegionList))
+                    {
+                        options.Regions = options
+                            .RegionList.Split(
+                                ',',
+                                StringSplitOptions.RemoveEmptyEntries
+                                    | StringSplitOptions.TrimEntries
+                            )
+                            .ToArray();
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(options.ExtractAdminLevelsList))
+                    {
+                        options.ExtractAdminLevels = options
+                            .ExtractAdminLevelsList.Split(
+                                ',',
+                                StringSplitOptions.RemoveEmptyEntries
+                                    | StringSplitOptions.TrimEntries
+                            )
+                            .Select(value => int.TryParse(value, out var level) ? level : -1)
+                            .ToArray();
+                    }
                 }
             )
             .Validate(

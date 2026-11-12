@@ -209,6 +209,19 @@ public sealed class MaintenanceControllerEdgeTests
     }
 
     [Fact]
+    public async Task Home_and_end_jump_to_the_first_and_last_selectable_rows()
+    {
+        var fixture = Create();
+        await fixture.Controller.AttachAsync(new FakeMessageBus());
+
+        fixture.Controller.Handle(ViewKey.End);
+        fixture.Controller.Snapshot.Selected!.Id.Should().Be("action:reset");
+
+        fixture.Controller.Handle(ViewKey.Home);
+        fixture.Controller.Snapshot.Selected!.Id.Should().Be("displayLevels");
+    }
+
+    [Fact]
     public async Task Any_other_key_cancels_a_pending_confirmation()
     {
         var fixture = Create();

@@ -225,6 +225,17 @@ internal static class MaintenanceRows
         return 0;
     }
 
+    public static int LastSelectable(IReadOnlyList<MaintenanceRow> rows)
+    {
+        for (var index = rows.Count - 1; index >= 0; index--)
+        {
+            if (rows[index].Selectable)
+                return index;
+        }
+
+        return 0;
+    }
+
     public static int IndexOf(IReadOnlyList<MaintenanceRow> rows, string id)
     {
         for (var index = 0; index < rows.Count; index++)

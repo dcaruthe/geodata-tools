@@ -131,6 +131,15 @@ public sealed class MaintenanceRowsTests
     }
 
     [Fact]
+    public void LastSelectable_skips_the_trailing_non_selectable_rows()
+    {
+        var rows = MaintenanceRows.Build(Inputs());
+
+        rows[MaintenanceRows.LastSelectable(rows)].Id.Should().Be("action:reset");
+        MaintenanceRows.LastSelectable([]).Should().Be(0);
+    }
+
+    [Fact]
     public void Move_wraps_from_the_last_row()
     {
         var rows = MaintenanceRows.Build(Inputs());

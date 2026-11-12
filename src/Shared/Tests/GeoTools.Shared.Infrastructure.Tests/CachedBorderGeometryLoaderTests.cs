@@ -262,7 +262,9 @@ public sealed class CachedBorderGeometryLoaderTests
         var root = Directory.CreateTempSubdirectory("geotools-progress-");
         try
         {
-            var borders = Directory.CreateDirectory(Path.Combine(root.FullName, "borders")).FullName;
+            var borders = Directory
+                .CreateDirectory(Path.Combine(root.FullName, "borders"))
+                .FullName;
             GeoJsonSeqParserTests.Write(
                 Path.Combine(borders, "a-boundaries.geojsonseq"),
                 GeoJsonSeqParserTests.Feature(

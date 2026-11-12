@@ -34,6 +34,7 @@ Desktop map viewer for OpenStreetMap border extracts. .NET 10 on Linux with an X
 - `geodata/` is gitignored and about 80 GB. Never commit it, and do not download it unless the task needs the pipeline. Tests use temp files and fakes.
 - `scripts/pull_geodata.sh` and `scripts/extract_borders.sh` delegate to the headless runtime mode. `osmium` is the only external extraction dependency.
 - `Map:AdminLevels` selects the levels the map draws. `Geodata:ExtractAdminLevels` selects the levels written to the border files. They are separate on purpose.
+- `Geodata:RegionList` and `Geodata:ExtractAdminLevelsList` are comma-separated overrides that replace their arrays, because environment variables cannot express an array cleanly.
 - `Storage:DatabasePath` defaults to `geodata/state/geotools.db`. Runtime settings and feature flags are stored there and layered over configuration.
 - A relative `Geodata:RootPath` or `Storage:DatabasePath` resolves by walking up to `geodata-tools.slnx`.
 - Missing border data is a supported state. The loading screen shows the bootstrap error, the map shows an instruction, and Maintenance offers a rebuild.

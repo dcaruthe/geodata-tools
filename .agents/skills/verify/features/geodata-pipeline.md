@@ -43,7 +43,7 @@ Preconditions:
   Run `wait 'Extracted fixture at levels'` and then `wait 'finished with Succeeded'`. The log names the levels and feature count, and `<root>/borders/fixture-boundaries.geojsonseq` exists. `cat <root>/borders/fixture-boundaries.levels` reads `2,4`.
 - **Cache reuse.** Stop. Start again with the same root and `VERIFY_DB` pointing at the database from the first run. The log reads `Loaded 1 border files ... (1 cached, 0 parsed)` and no `Extracted` line. The run finishes in about half a second.
 - **Skip current outputs.** Note `stat -c %Y <root>/borders/fixture-boundaries.geojsonseq` before a third run. After it, the mtime is unchanged and the log has no `Extracted` line.
-- **Adopt existing files.** Build a second root with the PBF, the border file, and the sidecar, with the border newer than the PBF. Start with a fresh database and the same env. The log reads `Loaded 1 border files ... (0 cached, 1 parsed)` and there is no `Extracted` line. The pipeline adopted the files through the artifact table.
+- **Adopt existing files.** Build a second root with the PBF, the border file, and a readable `.levels` sidecar matching the configured levels, with the border newer than the PBF. Start with a fresh database and the same env. The log reads `Loaded 1 border files ... (0 cached, 1 parsed)` and there is no `Extracted` line. The pipeline adopted the files through the artifact table.
 - **Download then extract.** Serve the fixture PBF over loopback:
 
   ```bash
@@ -68,13 +68,15 @@ Preconditions:
     dotnet run --project src/GeoTools.Launcher -- --geodata status
   ```
 
-  It prints each artifact with its kind, region, size, and status. `--geodata extract --region fixture` runs the same pipeline without a display.
+  It prints each artifact with its kind, region, size, and status. A fresh database prints none until a run records them. Point it at the same `Storage:DatabasePath` the app used, or run `--geodata rebuild` first. `--geodata extract --region fixture` runs the same pipeline without a display; the extract scope always rebuilds, and `--force` is accepted for symmetry.
 
 ## Gotchas
 
 - Never point the download recipes at geofabrik. The real continental PBFs are about 80 GB.
 - `Rebuild borders` on the real data takes hours. Use the fixture.
 - `osmium` is the only external extraction dependency. `python3` is no longer used at runtime.
-- A failed stage removes its partial output, so a later run does not trust a half-written border file.
+- A failed stage removes the partial border output and sidecar, so a later run does not trust a half-written file. The `.work` intermediates stay for diagnosis.
 - The `.levels` sidecar is still written and is the fastest way to inspect the extracted levels.
 - The runtime records artifact sizes and modification times in SQLite. Deleting the database makes the next run parse the border files again and adopt the current outputs.
+- `VERIFY_REGIONS` sets `Geodata:RegionList`, which replaces the configured region array. It does not append to the eight defaults. `extract_borders.sh` maps `ADMIN_LEVELS` to `Geodata:ExtractAdminLevelsList`, which replaces the defaults for the same reason.
+- The geometry cache key includes the border file size and modification time. Touching a border file forces a reparse even when its contents are unchanged.

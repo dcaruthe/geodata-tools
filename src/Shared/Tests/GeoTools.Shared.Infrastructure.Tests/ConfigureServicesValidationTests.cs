@@ -52,6 +52,35 @@ public sealed class ConfigureServicesValidationTests
         options.ExtractAdminLevels.Should().Equal(6);
     }
 
+    [Fact]
+    public void Compact_lists_replace_the_default_arrays()
+    {
+        var provider = Build(
+            new Dictionary<string, string?>
+            {
+                ["Geodata:RegionList"] = "fixture,test",
+                ["Geodata:ExtractAdminLevelsList"] = "6,8",
+            }
+        );
+
+        var options = provider.GetRequiredService<IOptions<GeodataOptions>>().Value;
+
+        options.Regions.Should().Equal("fixture", "test");
+        options.ExtractAdminLevels.Should().Equal(6, 8);
+    }
+
+    [Fact]
+    public void A_malformed_level_list_is_rejected_by_validation()
+    {
+        var provider = Build(
+            new Dictionary<string, string?> { ["Geodata:ExtractAdminLevelsList"] = "6,x" }
+        );
+
+        var act = () => provider.GetRequiredService<IOptions<GeodataOptions>>().Value;
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*positive*");
+    }
+
     private static ServiceProvider Build(Dictionary<string, string?> values)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();

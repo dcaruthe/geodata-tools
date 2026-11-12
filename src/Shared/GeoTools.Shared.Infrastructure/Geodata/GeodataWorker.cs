@@ -21,7 +21,9 @@ internal sealed class GeodataWorker(
         Channel.CreateUnbounded<BootstrapRequest>(
             new UnboundedChannelOptions { SingleReader = true }
         );
-    private volatile CancellationTokenSource? _current;
+    private readonly object _runGate = new();
+    private CancellationTokenSource? _current;
+    private bool _cancelPending;
 
     public Task AttachAsync(IMessageBus bus, CancellationToken cancellationToken = default) =>
         bus.SubscribeAsync(
@@ -40,7 +42,15 @@ internal sealed class GeodataWorker(
         await foreach (var request in _requests.Reader.ReadAllAsync(stoppingToken))
         {
             using var current = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-            _current = current;
+            lock (_runGate)
+            {
+                _current = current;
+                if (_cancelPending)
+                {
+                    _cancelPending = false;
+                    current.Cancel();
+                }
+            }
 
             try
             {
@@ -58,7 +68,8 @@ internal sealed class GeodataWorker(
             }
             finally
             {
-                _current = null;
+                lock (_runGate)
+                    _current = null;
             }
         }
     }

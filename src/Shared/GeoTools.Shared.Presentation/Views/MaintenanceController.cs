@@ -130,6 +130,12 @@ internal sealed class MaintenanceController(
             case ViewKey.Backspace:
                 _ = PublishCancelAsync();
                 return true;
+            case ViewKey.Home:
+                Jump(MaintenanceRows.FirstSelectable(Snapshot.Rows));
+                return true;
+            case ViewKey.End:
+                Jump(MaintenanceRows.LastSelectable(Snapshot.Rows));
+                return true;
             default:
                 return false;
         }
@@ -200,6 +206,16 @@ internal sealed class MaintenanceController(
             logger.LogWarning(exception, "Could not refresh the maintenance view.");
         }
     }
+
+    private void Jump(int index) =>
+        Update(current =>
+            current with
+            {
+                SelectedIndex = index,
+                PendingConfirmation = null,
+                Status = string.Empty,
+            }
+        );
 
     private void Move(int direction)
     {

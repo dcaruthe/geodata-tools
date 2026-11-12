@@ -98,6 +98,8 @@ internal sealed class SceneWindow : GameWindow, IOpenGlContext
             Keys.Right => ViewKey.Right,
             Keys.Enter or Keys.KeyPadEnter => ViewKey.Enter,
             Keys.Backspace => ViewKey.Backspace,
+            Keys.Home => ViewKey.Home,
+            Keys.End => ViewKey.End,
             _ => (ViewKey?)null,
         };
 

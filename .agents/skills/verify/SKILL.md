@@ -26,7 +26,7 @@ Run `.agents/skills/verify/scripts/app-session.sh doctor` first whenever a run l
 Send keys with `.agents/skills/verify/scripts/app-session.sh keys <key> ...`. The helper finds the window by title, focuses it, and sends real XTEST key events.
 
 - Views: `1` map, `2` maintenance, `Tab` next, `shift+Tab` previous, `Escape` close.
-- Maintenance: `Up`, `Down`, `Left`, `Right`, `Return`, `BackSpace`.
+- Maintenance: `Up`, `Down`, `Left`, `Right`, `Return`, `BackSpace`, `Home` (first row), `End` (last row).
 
 Wait for a log line with `.agents/skills/verify/scripts/app-session.sh wait '<pattern>' [seconds]`. It exits non-zero if the pattern never appears or the app exits.
 
@@ -39,7 +39,7 @@ Capture the screen with `.agents/skills/verify/scripts/app-session.sh shot <name
 - `VERIFY_NO_PULL=1` sets `Features:GeodataAutoPull=false`.
 - `VERIFY_RUN_ON_STARTUP=0` skips the automatic bootstrap run.
 - `VERIFY_SOURCE_BASE_URL` overrides `Geodata:SourceBaseUrl`, for a local fixture server.
-- `VERIFY_REGIONS` sets the pipeline regions, comma separated.
+- `VERIFY_REGIONS` sets the pipeline regions, comma separated, and replaces the configured list.
 - `VERIFY_OSMIUM` overrides the `osmium` executable path, for a failure proof.
 - `VERIFY_ADMIN_LEVEL` sets `Map:AdminLevels` to one level for the run.
 - `VERIFY_TITLE` window title. Defaults to `GeoTools verify`.

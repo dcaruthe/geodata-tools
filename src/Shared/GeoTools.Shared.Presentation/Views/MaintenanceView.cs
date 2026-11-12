@@ -39,13 +39,13 @@ internal sealed class MaintenanceView(MaintenanceController controller) : IView,
         composition.Add(
             new TextDto(
                 new Point(48, 100),
-                "Up/Down select   Left/Right change   Enter run   Backspace cancel",
+                "Up/Down select   Left/Right change   Enter run   Backspace cancel   Home/End jump",
                 13,
                 MutedColor
             )
         );
 
-        var maxVisible = Math.Max(6, (int)((size.Height - Top - 80) / RowHeight));
+        var maxVisible = Math.Max(6, (int)((size.Height - Top - 140) / RowHeight));
         var (start, count) = MaintenanceLayout.Window(
             snapshot.Rows.Count,
             snapshot.SelectedIndex,
@@ -118,7 +118,7 @@ internal sealed class MaintenanceView(MaintenanceController controller) : IView,
             composition.Add(
                 new TextDto(
                     new Point(48, size.Height - 92),
-                    "Enter again to confirm. Any other key cancels.",
+                    "Enter again to confirm. Moving or leaving cancels.",
                     14,
                     WarningColor
                 )

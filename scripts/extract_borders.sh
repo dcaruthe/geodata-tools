@@ -7,10 +7,7 @@ cd "$REPO_ROOT"
 # ADMIN_LEVELS is the old script's interface. Pass it through as the runtime
 # extraction levels so one implementation owns validation.
 if [ -n "${ADMIN_LEVELS:-}" ]; then
-  IFS=',' read -r -a levels <<< "$ADMIN_LEVELS"
-  for index in "${!levels[@]}"; do
-    export "Geodata__ExtractAdminLevels__$index=${levels[$index]}"
-  done
+  export "Geodata__ExtractAdminLevelsList=$ADMIN_LEVELS"
 fi
 
 if [ "$#" -eq 0 ]; then

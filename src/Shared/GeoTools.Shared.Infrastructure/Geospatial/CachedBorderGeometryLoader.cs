@@ -51,11 +51,15 @@ internal sealed class CachedBorderGeometryLoader(
         var misses = new List<int>();
         var cacheHits = 0;
         var processed = 0;
+        var progressGate = new object();
 
         void Report()
         {
-            var count = Interlocked.Increment(ref processed);
-            progress?.Report((double)count / files.Length);
+            lock (progressGate)
+            {
+                processed++;
+                progress?.Report((double)processed / files.Length);
+            }
         }
 
         for (var index = 0; index < files.Length; index++)
@@ -86,18 +90,14 @@ internal sealed class CachedBorderGeometryLoader(
         }
 
         var parsedFiles = new ParsedBorderFile?[files.Length];
-        Parallel.For(
-            0,
-            misses.Count,
-            index =>
-            {
-                parsedFiles[misses[index]] = GeoJsonSeqParser.ParseFile(
-                    files[misses[index]],
-                    tolerance
-                );
-                Report();
-            }
-        );
+        Parallel.For(0, misses.Count, index =>
+        {
+            parsedFiles[misses[index]] = GeoJsonSeqParser.ParseFile(
+                files[misses[index]],
+                tolerance
+            );
+            Report();
+        });
 
         var cacheWriteFailed = false;
         foreach (var index in misses)

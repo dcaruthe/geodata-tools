@@ -35,7 +35,7 @@ Preconditions:
 ## Gotchas
 
 - Runtime display levels persist in the database and override configuration. Use a fresh `VERIFY_DB` for an environment override.
-- Levels are sorted and de-duplicated before use, and values below `1` are rejected.
+- Levels are sorted and de-duplicated before use. Setters and configuration reject values below `1`; persisted rows with invalid values are dropped on load.
 - `Extracted levels` comes from the loaded geometry, not from the `.levels` sidecar.
-- Changing extraction levels does not re-extract by itself. Run `Rebuild borders`.
+- Changing extraction levels does not re-extract immediately. The next startup or update check extracts because the artifact levels no longer match. `Rebuild borders` applies it now.
 - Environment overrides need a restart. The app reads seeded configuration at startup.
