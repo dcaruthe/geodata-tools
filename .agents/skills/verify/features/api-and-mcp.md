@@ -62,4 +62,5 @@ A="http://127.0.0.1:$API_PORT"
 - The API's settings read goes through the link while the launcher is up, so it sees a change made in Maintenance immediately. The local fallback is a snapshot from API startup and is stale after an offline change.
 - `update_settings` and the maintenance adjust commands return before the write finishes. The status reads `Change queued.` and the next settings read shows the new value.
 - A GeoJSON query over 100000 points is refused. Narrow the bounds or raise `limit` within 2000; do not raise the point cap.
+- `maintenance_activate` on a destructive row sets the pending confirmation even while the Map is active, but the prompt only renders on the Maintenance view. Navigate first when the screenshot is the proof.
 - `press_keys` cannot switch views. `navigate` is the only way to change the view through the link.
