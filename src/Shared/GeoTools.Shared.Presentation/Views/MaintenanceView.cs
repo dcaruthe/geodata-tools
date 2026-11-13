@@ -9,7 +9,7 @@ internal sealed class MaintenanceView(MaintenanceController controller) : IView,
 {
     private static readonly Color Background = new(18, 18, 22);
     private static readonly Color TitleColor = Color.White;
-    private static readonly Color SectionColor = new(120, 150, 200);
+    private static readonly Color SectionColor = new(205, 210, 220);
     private static readonly Color TextColor = new(205, 210, 220);
     private static readonly Color MutedColor = new(130, 134, 142);
     private static readonly Color DangerColor = new(230, 120, 120);
@@ -75,7 +75,9 @@ internal sealed class MaintenanceView(MaintenanceController controller) : IView,
                 && string.IsNullOrEmpty(row.Value)
             )
             {
-                composition.Add(new TextDto(new Point(48, y), label, 14, SectionColor));
+                composition.Add(
+                    new TextDto(new Point(48, y), label.ToUpperInvariant(), 12, SectionColor)
+                );
                 continue;
             }
 

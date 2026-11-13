@@ -47,6 +47,17 @@ public sealed class MaintenanceViewEdgeTests
     }
 
     [Fact]
+    public void Compose_renders_sections_as_small_uppercase_labels()
+    {
+        var fixture = new ControllerFixture();
+
+        var texts = Texts(fixture.Controller, new ViewSize(1200, 800));
+
+        texts.Should().Contain("DISPLAY");
+        texts.Should().Contain("ACTIONS");
+    }
+
+    [Fact]
     public void Compose_encloses_the_selected_row_in_the_bar()
     {
         var fixture = new ControllerFixture();
