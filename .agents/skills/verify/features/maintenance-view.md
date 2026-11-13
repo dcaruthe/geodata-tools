@@ -15,6 +15,7 @@ The Maintenance view owns runtime settings, feature flags, per-region artifact s
 - `maintenance-confirm` asks for a second `Return` on destructive actions.
 - `maintenance-cancel` cancels the active run with `BackSpace` or the cancel action.
 - `maintenance-navigation` returns to Map with `1`, cycles with `Tab`, and closes with `Escape`.
+- `maintenance-layout` keeps the selection bar inside its row, fills the list to the bottom block, splits the key hint on a narrow window, and draws a scrollbar only when rows are hidden.
 
 ## How to get to it (user POV)
 
@@ -29,6 +30,7 @@ Preconditions:
 - `wait 'Composed map'` so the first run has finished.
 
 - **Open.** Run `keys 2` and wait for `Switched view Map -> Maintenance`. Run `shot maintenance`. The screen shows `Maintenance`, the key hint, the State row reading `Ready`, the Last run row, the Display, Extraction, Feature flags, Data, and Actions sections. At 1280 px the labels and values sit in separate columns, so the screen has `State    Ready` rather than `State: Ready`. Rows run State, Last run, Display, Extracted levels, Display levels, Simplify tolerance, Extraction, Extract levels, Feature flags, Map grid, Crosshair, Auto download, Data, the region rows, Actions, then the seven actions.
+- **Layout.** At 1200x800 the whole list fits and no scrollbar renders. The selection bar covers `Display levels` without touching `Simplify tolerance` above or below. Capture the armed `Force repull` prompt at 1200x260: one row sits above the amber prompt, which sits above the status and the footer. Capture at 420x800: the hint is two lines, ends inside the window, and the values read inline. `GET /api/launcher/screenshot?width=&height=` composes any size offscreen; `shot` proves the GL path at the window size.
 - **State and artifacts.** The State row reads Ready after the run. The Data rows name each region with its PBF and border sizes. Run `shot maintenance-data`.
 - **Display levels.** The selection starts on `Display levels` (value `2`). Run `keys Right`, then `keys 1` and wait for `admin levels 2,4`. Run `shot map-levels`. The map now draws both levels.
 - **Tolerance.** The tolerance row is one below display levels. Run `keys 2`, `keys Down`, `keys Right`. The row value changes to a larger tolerance, a cache rebuild is queued, and the final status reads `Saved.`. Wait for `Bootstrap run .* finished with Succeeded`; the log shows `(0 cached, 8 parsed)` on the rebuild.
@@ -46,5 +48,8 @@ Preconditions:
 - The update and rebuild actions are disabled while a run is active. `Retry failed events` and `Reset settings` stay enabled. Disabled rows are still selectable and ignore `Return`.
 - Runtime settings live in the state database. A fresh `VERIFY_DB` starts from the configuration defaults; only user changes are stored as rows.
 - The view refreshes when it becomes active and when a bootstrap message arrives; the row values update without a restart.
+- The list sizes itself to the footer, status, or prompt, whichever sits highest. A short window shows fewer rows rather than drawing over the bottom block.
+- A 4 px scrollbar at the right edge appears only when rows are hidden; its thumb marks the visible window. The old `more above` and `more below` labels are gone.
+- Section labels render uppercase at 12 px; rows stay at 14 px.
 - `Left` and `Right` on a toggle flip it; `Return` on a choice advances it. Selection skips section headers and the rows marked not selectable. Region artifact rows are `Info` but selectable, so `Down` stops on them.
 - A late progress message cannot reopen a step that already finished; the final status wins.
