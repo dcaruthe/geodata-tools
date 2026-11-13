@@ -68,6 +68,33 @@ internal sealed class JobStore(IDbContextFactory<GeoToolsDbContext> factory, Tim
         await ReloadAsync(context, latest.Id, cancellationToken);
     }
 
+    public async Task<RunRecord?> FindLatestRunAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        var row = await context
+            .Runs.AsNoTracking()
+            .OrderByDescending(run => run.StartedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return row is null ? null : ToRecord(row);
+    }
+
+    public async Task<IReadOnlyList<StepRecord>> ListStepsAsync(
+        RunId runId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        var id = runId.ToString();
+        var rows = await context
+            .Steps.AsNoTracking()
+            .Where(row => row.RunId == id)
+            .OrderBy(row => row.Ordinal)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(ToRecord).ToArray();
+    }
+
     public async Task ApplyAsync(
         BootstrapRunStarted message,
         CancellationToken cancellationToken = default

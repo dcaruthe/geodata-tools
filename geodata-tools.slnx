@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/GeoTools.Api/GeoTools.Api.csproj" />
     <Project Path="src/GeoTools.Launcher/GeoTools.Launcher.csproj" />
   </Folder>
   <Folder Name="/src/Shared/">
@@ -13,5 +14,8 @@
     <Project Path="src/Shared/Tests/GeoTools.Shared.Domain.Tests/GeoTools.Shared.Domain.Tests.csproj" />
     <Project Path="src/Shared/Tests/GeoTools.Shared.Infrastructure.Tests/GeoTools.Shared.Infrastructure.Tests.csproj" />
     <Project Path="src/Shared/Tests/GeoTools.Shared.Presentation.Tests/GeoTools.Shared.Presentation.Tests.csproj" />
+  </Folder>
+  <Folder Name="/src/Tests/">
+    <Project Path="src/Tests/GeoTools.Api.Tests/GeoTools.Api.Tests.csproj" />
   </Folder>
 </Solution>

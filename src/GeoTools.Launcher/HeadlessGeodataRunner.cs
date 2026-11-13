@@ -62,6 +62,9 @@ internal static class HeadlessGeodataRunner
             return Usage();
 
         var bus = host.Services.GetRequiredService<IMessageBus>();
+        foreach (var subscription in host.Services.GetServices<IMessageSubscription>())
+            await subscription.AttachAsync(bus, CancellationToken.None);
+
         await bus.SubscribeAsync(
             "headless",
             [
@@ -82,6 +85,7 @@ internal static class HeadlessGeodataRunner
         }
         finally
         {
+            await bus.DrainAsync();
             await bus.StopAsync();
         }
 
@@ -129,7 +133,7 @@ internal static class HeadlessGeodataRunner
             );
         }
 
-        if (jobs.LatestRun is { } run)
+        if (await jobs.FindLatestRunAsync() is { } run)
             Console.WriteLine($"Last run: {run.Status} ({run.Reason}) {run.Error ?? ""}");
         else
             Console.WriteLine("No runs recorded.");

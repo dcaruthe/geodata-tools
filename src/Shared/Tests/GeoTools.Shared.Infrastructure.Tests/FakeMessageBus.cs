@@ -52,6 +52,8 @@ internal sealed class FakeMessageBus : IMessageBus
         return Task.CompletedTask;
     }
 
+    public Task DrainAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
         Started = true;
@@ -88,6 +90,14 @@ internal class FakeJobStore : IJobStore
 
     public virtual Task ReconcileAsync(CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
+
+    public Task<RunRecord?> FindLatestRunAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(LatestRun);
+
+    public Task<IReadOnlyList<StepRecord>> ListStepsAsync(
+        RunId runId,
+        CancellationToken cancellationToken = default
+    ) => Task.FromResult(LatestSteps);
 
     public Task ApplyAsync(
         BootstrapRunStarted message,

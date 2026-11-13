@@ -10,6 +10,14 @@ public interface IJobStore
 
     Task ReconcileAsync(CancellationToken cancellationToken = default);
 
+    // A read-only host, such as the API, needs the run history without the reconcile write.
+    Task<RunRecord?> FindLatestRunAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<StepRecord>> ListStepsAsync(
+        RunId runId,
+        CancellationToken cancellationToken = default
+    );
+
     Task ApplyAsync(BootstrapRunStarted message, CancellationToken cancellationToken = default);
 
     Task ApplyAsync(BootstrapStepChanged message, CancellationToken cancellationToken = default);

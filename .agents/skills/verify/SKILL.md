@@ -9,7 +9,7 @@ Drive the real window under Xvfb. The unit tests cover the pure layers. This ski
 
 ## Launch
 
-Run `.agents/skills/verify/scripts/app-session.sh start`. It builds the solution, picks a free X display, starts `Xvfb` at 1280x1024x24, and runs the launcher with an isolated state database at `<run dir>/state.db` and the real geodata root. It waits for `Window "` and `Showing the loading view`, then prints the run directory, display, database, and log path.
+Run `.agents/skills/verify/scripts/app-session.sh start`. It builds the solution, picks a free X display, starts `Xvfb` at 1280x1024x24, and runs the launcher with an isolated state database at `<run dir>/state.db`, its own link socket and key under the run directory, and the real geodata root. It waits for `Window "` and `Showing the loading view`, then prints the run directory, display, database, link, and log path.
 
 A fresh database parses the border files on first run. That takes about 12 seconds and writes the geometry cache, so the first start proves the loading screen. Later runs against the same `VERIFY_DB` load the cache in under a second.
 
@@ -19,7 +19,7 @@ For hands-on work on a desktop display, run `dotnet run --project src/GeoTools.L
 
 ## Doctor
 
-Run `.agents/skills/verify/scripts/app-session.sh doctor` first whenever a run looks wrong. It checks `dotnet`, `Xvfb`, `xvfb-run`, ImageMagick `import`, and `xdotool` on `PATH`, builds the solution, reports the border file count and the geodata root, and removes a stale session file. It exits non-zero with the failing check.
+Run `.agents/skills/verify/scripts/app-session.sh doctor` first whenever a run looks wrong. It checks `dotnet`, `Xvfb`, `xvfb-run`, ImageMagick `import`, `xdotool`, and `curl` on `PATH`, builds the solution, reports the border file count and the geodata root, and removes a stale session file. It exits non-zero with the failing check.
 
 ## Drive
 
@@ -31,6 +31,14 @@ Send keys with `.agents/skills/verify/scripts/app-session.sh keys <key> ...`. Th
 Wait for a log line with `.agents/skills/verify/scripts/app-session.sh wait '<pattern>' [seconds]`. It exits non-zero if the pattern never appears or the app exits.
 
 Capture the screen with `.agents/skills/verify/scripts/app-session.sh shot <name>`. It writes `.audit/verify/<run>/<name>.png` from the root window.
+
+## API
+
+Run `.agents/skills/verify/scripts/app-session.sh api-start` after `start`. It starts `GeoTools.Api` with the session's database, geodata root, link socket, and key, on a free loopback port from 5390 upward. Read the port from `status` or from `API_PORT` in `.audit/verify/.session`. The API log is `<run>/api.log`.
+
+`api-stop` stops only the API. `app-stop` stops only the window, which is how to prove the launcher-down state while the API keeps answering. `stop` tears down everything the session started.
+
+The API surfaces are `/health`, `/api/*`, `/swagger`, `/graphql` with the IDE at `/graphql/`, and the MCP endpoint at `/mcp`. MCP replies as SSE, so send `Accept: application/json, text/event-stream`. Recipes and pass predicates are in `features/api-and-mcp.md`.
 
 ## Environment
 
@@ -44,12 +52,13 @@ Capture the screen with `.agents/skills/verify/scripts/app-session.sh shot <name
 - `VERIFY_ADMIN_LEVEL` sets `Map:AdminLevels` to one level for the run.
 - `VERIFY_TITLE` window title. Defaults to `GeoTools verify`.
 - `VERIFY_TIMEOUT` readiness timeout in seconds.
+- `VERIFY_ROTATE_SECONDS` link session key rotation interval. Set it before both `start` and `api-start`. Defaults to 900.
 
 Runtime settings persist in the database, so a configuration override only wins on a fresh `VERIFY_DB`. That is the default for every run.
 
 ## Evidence
 
-Every run writes to `.audit/verify/<UTC stamp>-<pid>/`. Keep `app.log`, `xvfb.log`, the database, screenshots, and a short `summary.md` that names the feature IDs, the key presses, and the observed state.
+Every run writes to `.audit/verify/<UTC stamp>-<pid>/`. Keep `app.log`, `xvfb.log`, `api.log` when the API ran, the database, screenshots, and a short `summary.md` that names the feature IDs, the key presses, and the observed state.
 
 A proof must exercise the user path. Start from the state the recipe names, send the key, wait for the log line, and capture the screen after the resulting state. A screenshot alone does not prove a view switch or a pipeline stage. The log line does.
 
@@ -65,8 +74,11 @@ If a run crashed, `doctor` removes a stale session file after confirming the rec
 
 - `scripts/app-session.sh doctor` checks the environment.
 - `scripts/app-session.sh start` starts Xvfb and the app.
+- `scripts/app-session.sh api-start` starts the API against the session.
+- `scripts/app-session.sh api-stop` stops the API.
+- `scripts/app-session.sh app-stop` stops only the window.
 - `scripts/app-session.sh keys <key> ...` drives the window.
 - `scripts/app-session.sh wait <pattern>` waits for a log line.
 - `scripts/app-session.sh shot <name>` captures the root window.
-- `scripts/app-session.sh status` reports the session, database, and evidence directory.
+- `scripts/app-session.sh status` reports the session, database, link, API, and evidence directory.
 - `scripts/app-session.sh stop` tears down only what the session started.

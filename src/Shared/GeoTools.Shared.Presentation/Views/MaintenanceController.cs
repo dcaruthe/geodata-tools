@@ -9,6 +9,13 @@ using Microsoft.Extensions.Options;
 
 namespace GeoTools.Shared.Presentation.Views;
 
+internal sealed record MaintenanceCommandResult(
+    bool Accepted,
+    string Status,
+    string? PendingConfirmation,
+    string? Error
+);
+
 internal sealed class MaintenanceController(
     ISettingsStore settings,
     IJobStore jobs,
@@ -43,6 +50,89 @@ internal sealed class MaintenanceController(
     public MaintenanceSnapshot Snapshot => Volatile.Read(ref _snapshot);
 
     public event EventHandler? Changed;
+
+    // The link adapter drives the same state machine as the keyboard. Selection is by row id so
+    // an agent never has to count key presses.
+    public MaintenanceCommandResult SelectRow(string rowId)
+    {
+        var row = Find(rowId);
+        if (row is null)
+            return Failed($"No maintenance row {rowId}.");
+
+        if (!row.Selectable)
+            return Failed($"{row.Label} is not selectable.");
+
+        Jump(MaintenanceRows.IndexOf(Snapshot.Rows, rowId));
+        return new MaintenanceCommandResult(true, Snapshot.Status, null, null);
+    }
+
+    public MaintenanceCommandResult AdjustRow(string rowId, int direction)
+    {
+        var row = Find(rowId);
+        if (row is null)
+            return Failed($"No maintenance row {rowId}.");
+
+        if (!row.Enabled)
+            return Failed($"{row.Label} is disabled.");
+
+        if (!row.Selectable || row.Kind == MaintenanceRowKind.Action)
+            return Failed($"{row.Label} is not adjustable.");
+
+        Jump(MaintenanceRows.IndexOf(Snapshot.Rows, rowId));
+        Adjust(direction);
+
+        // Settings and flag writes finish on a background task, so the row status is still empty
+        // here. Say the change was queued instead of returning a blank status.
+        return new MaintenanceCommandResult(
+            true,
+            string.IsNullOrEmpty(Snapshot.Status) ? "Change queued." : Snapshot.Status,
+            null,
+            null
+        );
+    }
+
+    public MaintenanceCommandResult ActivateRow(string rowId, bool confirm)
+    {
+        var row = Find(rowId);
+        if (row is null)
+            return Failed($"No maintenance row {rowId}.");
+
+        if (!row.Enabled)
+            return Failed($"{row.Label} is disabled.");
+
+        if (!row.Selectable || row.Kind == MaintenanceRowKind.Info)
+            return Failed($"{row.Label} is not an action.");
+
+        Jump(MaintenanceRows.IndexOf(Snapshot.Rows, rowId));
+        Activate();
+
+        if (!row.Destructive)
+            return new MaintenanceCommandResult(true, Snapshot.Status, null, null);
+
+        // A destructive row asks for a second press. The link caller sends confirm instead.
+        if (!confirm)
+            return new MaintenanceCommandResult(
+                true,
+                Snapshot.Status,
+                Snapshot.PendingConfirmation,
+                null
+            );
+
+        Activate();
+        return new MaintenanceCommandResult(true, Snapshot.Status, null, null);
+    }
+
+    public MaintenanceCommandResult CancelRun()
+    {
+        _ = PublishCancelAsync();
+        return new MaintenanceCommandResult(true, "Cancellation requested.", null, null);
+    }
+
+    private MaintenanceRow? Find(string rowId) =>
+        Snapshot.Rows.FirstOrDefault(row => string.Equals(row.Id, rowId, StringComparison.Ordinal));
+
+    private MaintenanceCommandResult Failed(string error) =>
+        new(false, Snapshot.Status, Snapshot.PendingConfirmation, error);
 
     public async Task AttachAsync(
         IMessageBus busInstance,

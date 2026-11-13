@@ -1,0 +1,265 @@
+using FluentAssertions;
+using GeoTools.Shared.Application.Link;
+using GeoTools.Shared.Application.Messaging.Messages;
+using GeoTools.Shared.Application.Options;
+using GeoTools.Shared.Application.Scenes;
+using GeoTools.Shared.Application.State;
+using GeoTools.Shared.Application.Views;
+using GeoTools.Shared.Domain.Primatives;
+using GeoTools.Shared.Infrastructure.Rendering;
+using GeoTools.Shared.Presentation.Link;
+using GeoTools.Shared.Presentation.Views;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using SkiaSharp;
+
+namespace GeoTools.Shared.Presentation.Tests;
+
+public sealed class WindowCommandPumpTests
+{
+    [Fact]
+    public async Task A_navigate_command_changes_the_view()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(new NavigateRequest("1", ViewId.Maintenance));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeTrue();
+        response.ReadPayload<CommandResultDto>()!.ActiveView.Should().Be(ViewId.Maintenance);
+        harness.Mediator.ActiveView.Should().Be(ViewId.Maintenance);
+    }
+
+    [Fact]
+    public async Task Pressing_keys_reaches_the_active_view()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(new PressKeysRequest("1", [WindowKey.Down, WindowKey.Enter]));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeTrue();
+        harness.Router.Keys.Should().Equal(ViewKey.Down, ViewKey.Enter);
+    }
+
+    [Fact]
+    public async Task A_screenshot_returns_a_png_of_the_requested_size()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(new ScreenshotRequest("1", 120, 90, ScreenshotMode.Scene));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeTrue(response.Error?.Message);
+        var shot = response.ReadPayload<ScreenshotDto>()!;
+        shot.Png.Take(4).Should().Equal(0x89, 0x50, 0x4E, 0x47);
+        using var bitmap = SKBitmap.Decode(shot.Png);
+        bitmap.Width.Should().Be(120);
+        bitmap.Height.Should().Be(90);
+        shot.Width.Should().Be(120);
+        shot.Mode.Should().Be(nameof(ScreenshotMode.Scene));
+    }
+
+    [Fact]
+    public async Task A_screenshot_defaults_to_the_window_size()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(new ScreenshotRequest("1", null, null, ScreenshotMode.Scene));
+        harness.Pump.Drain(new ViewSize(640, 480));
+        var shot = (await pending).ReadPayload<ScreenshotDto>()!;
+
+        shot.Width.Should().Be(640);
+        shot.Height.Should().Be(480);
+    }
+
+    [Fact]
+    public async Task An_activate_command_runs_the_row_action()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(
+            new MaintenanceCommandRequest(
+                "1",
+                MaintenanceOperation.Activate,
+                "displayLevels",
+                0,
+                false
+            )
+        );
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.ReadPayload<CommandResultDto>()!.Accepted.Should().BeTrue();
+        harness.Settings.Map.AdminLevels.Should().Equal(2, 4);
+    }
+
+    [Fact]
+    public async Task A_pipeline_command_without_confirm_asks_first()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(
+            new PipelineCommandRequest("1", PipelineAction.Repull, false)
+        );
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeTrue();
+        harness.Bus.Published.Should().BeEmpty();
+
+        var confirmed = harness.Enqueue(
+            new PipelineCommandRequest("2", PipelineAction.Repull, true)
+        );
+        harness.Pump.Drain(new ViewSize(800, 600));
+        await confirmed;
+
+        harness.Bus.Published.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_request_that_is_not_a_window_command_is_refused()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(new GetLogsRequest("1", null, 10, null));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeFalse();
+        response.Error!.Code.Should().Be(LinkError.Unsupported);
+    }
+
+    [Fact]
+    public async Task An_adjust_command_changes_the_row_without_keys()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(
+            new MaintenanceCommandRequest(
+                "1",
+                MaintenanceOperation.Adjust,
+                "displayLevels",
+                1,
+                false
+            )
+        );
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.ReadPayload<CommandResultDto>()!.Accepted.Should().BeTrue();
+        harness.Settings.Map.AdminLevels.Should().Equal(2, 4);
+    }
+
+    [Fact]
+    public async Task Cancelling_the_pipeline_requests_cancellation()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(
+            new PipelineCommandRequest("1", PipelineAction.Cancel, false)
+        );
+        harness.Pump.Drain(new ViewSize(800, 600));
+        await pending;
+
+        harness.Bus.Published.OfType<CancelRequested>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_tiny_capture_size_is_clamped()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(new ScreenshotRequest("1", 10, 10, ScreenshotMode.Scene));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var shot = (await pending).ReadPayload<ScreenshotDto>()!;
+
+        shot.Width.Should().Be(64);
+        shot.Height.Should().Be(64);
+    }
+
+    [Fact]
+    public async Task A_scene_failure_is_reported_as_internal()
+    {
+        var harness = await CreateAsync(failingScene: true);
+
+        var pending = harness.Enqueue(new ScreenshotRequest("1", 100, 100, ScreenshotMode.Scene));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeFalse();
+        response.Error!.Code.Should().Be(LinkError.Internal);
+    }
+
+    private static async Task<Harness> CreateAsync(bool failingScene = false)
+    {
+        var settings = new TestSettingsStore();
+        var bus = new FakeMessageBus();
+        var mediator = new FakeNavigationMediator();
+        var controller = new MaintenanceController(
+            settings,
+            new FakeJobStore(),
+            new FakeArtifactStore(),
+            new ProgressStore(),
+            new BorderGeometryStore(),
+            bus,
+            Microsoft.Extensions.Options.Options.Create(
+                new GeodataOptions { Regions = ["africa"] }
+            ),
+            mediator,
+            TimeProvider.System,
+            NullLogger<MaintenanceController>.Instance
+        );
+        await controller.AttachAsync(bus);
+
+        var inbox = new WindowCommandInbox();
+        var router = new FakeInputRouter();
+        var pump = new WindowCommandPump(
+            inbox,
+            mediator,
+            router,
+            new FakeSceneSource(failingScene),
+            controller,
+            new SkiaOffscreenSurface(),
+            TimeProvider.System,
+            NullLogger<WindowCommandPump>.Instance
+        );
+
+        return new Harness(inbox, pump, mediator, router, settings, bus);
+    }
+
+    private sealed record Harness(
+        WindowCommandInbox Inbox,
+        WindowCommandPump Pump,
+        FakeNavigationMediator Mediator,
+        FakeInputRouter Router,
+        TestSettingsStore Settings,
+        FakeMessageBus Bus
+    )
+    {
+        public Task<LinkResponse> Enqueue(LinkRequest request) =>
+            Inbox.EnqueueAsync(request, TimeSpan.FromSeconds(2), CancellationToken.None);
+    }
+
+    private sealed class FakeInputRouter : IViewInputRouter
+    {
+        public List<ViewKey> Keys { get; } = [];
+
+        public bool Handle(ViewKey key)
+        {
+            Keys.Add(key);
+            return true;
+        }
+    }
+
+    private sealed class FakeSceneSource(bool failing) : ISceneSource
+    {
+        public SceneDto Compose(ViewSize size) =>
+            failing
+                ? throw new InvalidOperationException("scene failed")
+                : new SceneDto([], new Color(10, 12, 18));
+    }
+}

@@ -7,6 +7,7 @@ SESSION_FILE="$STATE_DIR/.session"
 TITLE="${VERIFY_TITLE:-GeoTools verify}"
 TIMEOUT="${VERIFY_TIMEOUT:-90}"
 APP_DLL="$REPO_ROOT/src/GeoTools.Launcher/bin/Debug/net10.0/GeoTools.Launcher.dll"
+API_DLL="$REPO_ROOT/src/GeoTools.Api/bin/Debug/net10.0/GeoTools.Api.dll"
 GEODATA_ROOT="${VERIFY_GEODATA_ROOT:-$REPO_ROOT/geodata}"
 
 die() {
@@ -17,7 +18,7 @@ die() {
 require_tools() {
   local missing=()
   local tool
-  for tool in dotnet Xvfb xvfb-run import xdotool; do
+  for tool in dotnet Xvfb xvfb-run import xdotool curl; do
     command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
   done
 
@@ -107,11 +108,16 @@ start() {
   fi
 
   DB_PATH="${VERIFY_DB:-$RUN_DIR/state.db}"
+  LINK_SOCKET="$RUN_DIR/launcher.sock"
+  LINK_KEY="$RUN_DIR/launcher.key"
   local -a app_env=(
     "DISPLAY=$XDISPLAY"
     "Window__Title=$TITLE"
     "Storage__DatabasePath=$DB_PATH"
     "Geodata__RootPath=$GEODATA_ROOT"
+    "Link__SocketPath=$LINK_SOCKET"
+    "Link__KeyPath=$LINK_KEY"
+    "Link__RotateSeconds=${VERIFY_ROTATE_SECONDS:-900}"
   )
   if [ -n "${VERIFY_ADMIN_LEVEL:-}" ]; then
     app_env+=("Map__AdminLevels__0=$VERIFY_ADMIN_LEVEL")
@@ -169,12 +175,18 @@ start() {
     printf 'XVFB_PID=%q\n' "$XVFB_PID"
     printf 'TITLE=%q\n' "$TITLE"
     printf 'DB_PATH=%q\n' "$DB_PATH"
+    printf 'GEODATA_ROOT=%q\n' "$GEODATA_ROOT"
+    printf 'LINK_SOCKET=%q\n' "$LINK_SOCKET"
+    printf 'LINK_KEY=%q\n' "$LINK_KEY"
+    printf 'API_PORT=%q\n' ""
+    printf 'API_PID=%q\n' ""
   } >"$SESSION_FILE"
 
   echo "session: $RUN_DIR"
   echo "display: $XDISPLAY"
   echo "title: $TITLE"
   echo "database: $DB_PATH"
+  echo "link: $LINK_SOCKET"
   echo "log: $RUN_DIR/app.log"
 }
 
@@ -236,7 +248,105 @@ status() {
   echo "display: $XDISPLAY"
   echo "title: $TITLE"
   echo "database: $DB_PATH"
+  echo "link: $LINK_SOCKET"
+  if [ -n "${API_PID:-}" ] && is_alive "$API_PID"; then
+    echo "api: http://127.0.0.1:$API_PORT"
+  else
+    echo "api: stopped"
+  fi
   echo "evidence: $RUN_DIR"
+}
+
+api_start() {
+  load_session
+  is_alive "$APP_PID" || die "the app is not running"
+  [ -f "$API_DLL" ] || die "missing $API_DLL after build"
+  [ -f "$LINK_KEY" ] || die "the launcher did not create $LINK_KEY"
+  if [ -n "${API_PID:-}" ] && is_alive "$API_PID"; then
+    die "the api is already running on port $API_PORT"
+  fi
+
+  API_PORT=$(find_port)
+  local -a api_env=(
+    "Urls=http://127.0.0.1:$API_PORT"
+    "Storage__DatabasePath=$DB_PATH"
+    "Geodata__RootPath=$GEODATA_ROOT"
+    "Link__SocketPath=$LINK_SOCKET"
+    "Link__KeyPath=$LINK_KEY"
+    "Link__RotateSeconds=${VERIFY_ROTATE_SECONDS:-900}"
+    "Logging__LogLevel__Default=Warning"
+  )
+  if [ -n "${VERIFY_REGIONS:-}" ]; then
+    api_env+=("Geodata__RegionList=$VERIFY_REGIONS")
+  fi
+
+  (
+    cd "$REPO_ROOT"
+    exec env "${api_env[@]}" dotnet "$API_DLL"
+  ) >"$RUN_DIR/api.log" 2>&1 &
+  API_PID=$!
+
+  local i
+  for i in $(seq 1 60); do
+    if curl -sS --max-time 1 "http://127.0.0.1:$API_PORT/health" >/dev/null 2>&1; then
+      write_session
+      echo "api: http://127.0.0.1:$API_PORT"
+      echo "log: $RUN_DIR/api.log"
+      return 0
+    fi
+    if ! is_alive "$API_PID"; then
+      tail -20 "$RUN_DIR/api.log" >&2
+      die "the api exited before it became ready"
+    fi
+    sleep 0.5
+  done
+
+  kill_pid "$API_PID"
+  tail -20 "$RUN_DIR/api.log" >&2
+  die "the api was not ready after 30s"
+}
+
+api_stop() {
+  load_session
+  if [ -n "${API_PID:-}" ] && is_alive "$API_PID"; then
+    kill_pid "$API_PID"
+  fi
+  API_PID=""
+  API_PORT=""
+  write_session
+  echo "api stopped"
+}
+
+app_stop() {
+  load_session
+  if is_alive "$APP_PID"; then
+    kill_pid "$APP_PID"
+  fi
+  echo "app stopped; xvfb and api left running"
+}
+
+find_port() {
+  local port=5390
+  while curl -sS --max-time 0.3 "http://127.0.0.1:$port/health" >/dev/null 2>&1; do
+    port=$((port + 1))
+  done
+  echo "$port"
+}
+
+write_session() {
+  {
+    printf 'RUN_DIR=%q\n' "$RUN_DIR"
+    printf 'XDISPLAY=%q\n' "$XDISPLAY"
+    printf 'APP_PID=%q\n' "$APP_PID"
+    printf 'XVFB_PID=%q\n' "$XVFB_PID"
+    printf 'TITLE=%q\n' "$TITLE"
+    printf 'DB_PATH=%q\n' "$DB_PATH"
+    printf 'GEODATA_ROOT=%q\n' "${GEODATA_ROOT:-}"
+    printf 'LINK_SOCKET=%q\n' "${LINK_SOCKET:-}"
+    printf 'LINK_KEY=%q\n' "${LINK_KEY:-}"
+    printf 'API_PORT=%q\n' "${API_PORT:-}"
+    printf 'API_PID=%q\n' "${API_PID:-}"
+  } >"$SESSION_FILE"
 }
 
 stop() {
@@ -246,6 +356,9 @@ stop() {
   fi
 
   source "$SESSION_FILE"
+  if [ -n "${API_PID:-}" ] && is_alive "$API_PID"; then
+    kill_pid "$API_PID"
+  fi
   kill_pid "$APP_PID"
   kill_pid "$XVFB_PID"
   rm -f "$SESSION_FILE"
@@ -256,13 +369,16 @@ usage() {
   cat <<EOF
 usage: $0 <command>
 
-  doctor    check tools, build, border data, and stale sessions
-  start     start Xvfb and the app, then wait for the ready log lines
-  keys ...  send keys to the app window (1, 2, Tab, shift+Tab, Escape)
-  shot ...  capture the root window to the run directory
-  wait ...  wait for a log pattern, then report it
-  status    report the session state and evidence directory
-  stop      kill the app and Xvfb this session started
+  doctor     check tools, build, border data, and stale sessions
+  start      start Xvfb and the app, then wait for the ready log lines
+  api-start  start the API against this session's database and link socket
+  api-stop   stop the API this session started
+  app-stop   stop only the window, leaving Xvfb and the API running
+  keys ...   send keys to the app window (1, 2, Tab, shift+Tab, Escape)
+  shot ...   capture the root window to the run directory
+  wait ...   wait for a log pattern, then report it
+  status     report the session, database, link, and api state
+  stop       kill the app, api, and Xvfb this session started
 
 environment:
   VERIFY_TITLE        window title (default: $TITLE)
@@ -275,6 +391,7 @@ environment:
   VERIFY_REGIONS      comma-separated region names for the pipeline
   VERIFY_OSMIUM       osmium executable (default: osmium)
   VERIFY_ADMIN_LEVEL  sets Map:AdminLevels to this single level
+  VERIFY_ROTATE_SECONDS  link session key rotation interval (default: 900)
 EOF
 }
 
@@ -282,6 +399,9 @@ command="${1:-}"
 case "$command" in
   doctor) doctor ;;
   start) start ;;
+  api-start) api_start ;;
+  api-stop) api_stop ;;
+  app-stop) app_stop ;;
   keys)
     shift
     keys "$@"

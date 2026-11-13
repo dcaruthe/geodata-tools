@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using GeoTools.Shared.Application.Abstractions.Graphics;
 using GeoTools.Shared.Application.Rendering;
 using GeoTools.Shared.Application.Views;
+using GeoTools.Shared.Presentation.Link;
 using GeoTools.Shared.Presentation.Options;
 using GeoTools.Shared.Presentation.Views;
 using OpenTK.Mathematics;
@@ -17,6 +18,7 @@ internal sealed class SceneWindow : GameWindow, IOpenGlContext
 {
     private readonly INavigationMediator _mediator;
     private readonly IViewInputRouter _inputRouter;
+    private readonly WindowCommandPump _pump;
     private ISceneRenderer? _renderer;
     private ISceneSource? _source;
     private volatile bool _closeRequested;
@@ -24,7 +26,8 @@ internal sealed class SceneWindow : GameWindow, IOpenGlContext
     private SceneWindow(
         WindowOptions options,
         INavigationMediator mediator,
-        IViewInputRouter inputRouter
+        IViewInputRouter inputRouter,
+        WindowCommandPump pump
     )
         : base(
             GameWindowSettings.Default,
@@ -39,16 +42,18 @@ internal sealed class SceneWindow : GameWindow, IOpenGlContext
     {
         _mediator = mediator;
         _inputRouter = inputRouter;
+        _pump = pump;
     }
 
     public static SceneWindow Create(
         WindowOptions options,
         INavigationMediator mediator,
-        IViewInputRouter inputRouter
+        IViewInputRouter inputRouter,
+        WindowCommandPump pump
     )
     {
         PreferX11();
-        return new SceneWindow(options, mediator, inputRouter);
+        return new SceneWindow(options, mediator, inputRouter, pump);
     }
 
     // GLFW selects Wayland by default, and its Wayland path loads libdecor, which loads GTK when
@@ -74,6 +79,10 @@ internal sealed class SceneWindow : GameWindow, IOpenGlContext
 
     protected override void OnUpdateFrame(FrameEventArgs args)
     {
+        // The link's queued commands run here so navigation, input, and capture all stay on the
+        // thread that owns the window and the scene caches.
+        _pump.Drain(new ViewSize(ClientSize.X, ClientSize.Y));
+
         if (_closeRequested)
             Close();
 

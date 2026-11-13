@@ -28,6 +28,29 @@ public sealed class SqliteMessageBusTests
     }
 
     [Fact]
+    public async Task Drain_dispatches_persisted_messages_without_waiting_for_the_poll()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        await using var bus = CreateBus(database);
+        var received = new List<string>();
+
+        await bus.SubscribeAsync("drain", [MessageTopics.SettingsChanged], (envelope, _) =>
+        {
+            lock (received)
+                received.Add(MessageSerialization.Deserialize<SettingsChanged>(envelope).Key);
+            return Task.CompletedTask;
+        });
+        await bus.StartAsync();
+
+        await bus.PublishAsync(Message("a"));
+        await bus.PublishAsync(Message("b"));
+        await bus.DrainAsync();
+
+        received.Should().Equal("a", "b");
+        await bus.StopAsync();
+    }
+
+    [Fact]
     public async Task Subscriber_receives_its_topics_in_sequence_order()
     {
         await using var database = await TestDatabase.CreateAsync();
