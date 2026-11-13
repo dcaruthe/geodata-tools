@@ -9,7 +9,6 @@ internal sealed class MaintenanceView(MaintenanceController controller) : IView,
 {
     private static readonly Color Background = new(18, 18, 22);
     private static readonly Color TitleColor = Color.White;
-    private static readonly Color SectionColor = new(205, 210, 220);
     private static readonly Color TextColor = new(205, 210, 220);
     private static readonly Color MutedColor = new(130, 134, 142);
     private static readonly Color DangerColor = new(230, 120, 120);
@@ -76,7 +75,7 @@ internal sealed class MaintenanceView(MaintenanceController controller) : IView,
             )
             {
                 composition.Add(
-                    new TextDto(new Point(48, y), label.ToUpperInvariant(), 12, SectionColor)
+                    new TextDto(new Point(48, y), label.ToUpperInvariant(), 12, TextColor)
                 );
                 continue;
             }
@@ -170,7 +169,7 @@ internal sealed class MaintenanceView(MaintenanceController controller) : IView,
             Math.Min(16f, trackHeight),
             trackHeight
         );
-        var thumbTop = trackTop + (trackHeight - thumbHeight) * start / Math.Max(1, total - count);
+        var thumbTop = trackTop + (trackHeight - thumbHeight) * start / (total - count);
         var x = size.Width - ScrollbarRightInset;
 
         composition.Add(Rectangle(x, trackTop, ScrollbarWidth, trackHeight, ScrollbarTrackColor));
