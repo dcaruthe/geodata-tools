@@ -1,5 +1,7 @@
 using FluentAssertions;
 using GeoTools.Shared.Application.Options;
+using GeoTools.Shared.Infrastructure.Rendering;
+using GeoTools.Shared.Presentation.Link;
 using GeoTools.Shared.Presentation.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,6 +67,35 @@ public sealed class ConfigureServicesTests
             _ => { },
             options => options.AdminLevels.Should().Equal(4)
         );
+    }
+
+    [Fact]
+    public async Task The_link_services_resolve_without_a_window()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Geodata:RegionList"] = "africa",
+                    ["Geodata:ExtractAdminLevelsList"] = "2",
+                    ["Storage:DatabasePath"] = Path.Combine(
+                        Path.GetTempPath(),
+                        $"geotools-link-{Guid.NewGuid():N}.db"
+                    ),
+                }
+            )
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.SetupPresentationLayer();
+
+        await using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<WindowCommandInbox>().Should().NotBeNull();
+        provider.GetRequiredService<WindowCommandPump>().Should().NotBeNull();
+        provider.GetRequiredService<SkiaOffscreenSurface>().Should().NotBeNull();
     }
 
     private static void WithOptions<T>(Action<T> configure, Action<T> inspect)

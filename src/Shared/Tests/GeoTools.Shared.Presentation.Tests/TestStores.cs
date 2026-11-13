@@ -12,6 +12,14 @@ internal sealed class FakeJobStore : IJobStore
 
     public Task ReconcileAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    public Task<RunRecord?> FindLatestRunAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(LatestRun);
+
+    public Task<IReadOnlyList<StepRecord>> ListStepsAsync(
+        RunId runId,
+        CancellationToken cancellationToken = default
+    ) => Task.FromResult(LatestSteps);
+
     public Task ApplyAsync(
         BootstrapRunStarted message,
         CancellationToken cancellationToken = default

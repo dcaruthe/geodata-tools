@@ -1,5 +1,6 @@
 using FluentAssertions;
 using GeoTools.Shared.Application.Link;
+using GeoTools.Shared.Application.Messaging.Messages;
 using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.Scenes;
 using GeoTools.Shared.Application.State;
@@ -132,7 +133,68 @@ public sealed class WindowCommandPumpTests
         response.Error!.Code.Should().Be(LinkError.Unsupported);
     }
 
-    private static async Task<Harness> CreateAsync()
+    [Fact]
+    public async Task An_adjust_command_changes_the_row_without_keys()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(
+            new MaintenanceCommandRequest(
+                "1",
+                MaintenanceOperation.Adjust,
+                "displayLevels",
+                1,
+                false
+            )
+        );
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.ReadPayload<CommandResultDto>()!.Accepted.Should().BeTrue();
+        harness.Settings.Map.AdminLevels.Should().Equal(2, 4);
+    }
+
+    [Fact]
+    public async Task Cancelling_the_pipeline_requests_cancellation()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(
+            new PipelineCommandRequest("1", PipelineAction.Cancel, false)
+        );
+        harness.Pump.Drain(new ViewSize(800, 600));
+        await pending;
+
+        harness.Bus.Published.OfType<CancelRequested>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_tiny_capture_size_is_clamped()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(new ScreenshotRequest("1", 10, 10, ScreenshotMode.Scene));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var shot = (await pending).ReadPayload<ScreenshotDto>()!;
+
+        shot.Width.Should().Be(64);
+        shot.Height.Should().Be(64);
+    }
+
+    [Fact]
+    public async Task A_scene_failure_is_reported_as_internal()
+    {
+        var harness = await CreateAsync(failingScene: true);
+
+        var pending = harness.Enqueue(new ScreenshotRequest("1", 100, 100, ScreenshotMode.Scene));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeFalse();
+        response.Error!.Code.Should().Be(LinkError.Internal);
+    }
+
+    private static async Task<Harness> CreateAsync(bool failingScene = false)
     {
         var settings = new TestSettingsStore();
         var bus = new FakeMessageBus();
@@ -159,7 +221,7 @@ public sealed class WindowCommandPumpTests
             inbox,
             mediator,
             router,
-            new FakeSceneSource(),
+            new FakeSceneSource(failingScene),
             controller,
             new SkiaOffscreenSurface(),
             TimeProvider.System,
@@ -193,8 +255,11 @@ public sealed class WindowCommandPumpTests
         }
     }
 
-    private sealed class FakeSceneSource : ISceneSource
+    private sealed class FakeSceneSource(bool failing) : ISceneSource
     {
-        public SceneDto Compose(ViewSize size) => new([], new Color(10, 12, 18));
+        public SceneDto Compose(ViewSize size) =>
+            failing
+                ? throw new InvalidOperationException("scene failed")
+                : new SceneDto([], new Color(10, 12, 18));
     }
 }

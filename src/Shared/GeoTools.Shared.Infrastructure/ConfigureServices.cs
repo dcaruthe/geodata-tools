@@ -168,7 +168,10 @@ public static class ConfigureServices
 
         services.AddSingleton<IArtifactStore, ArtifactStore>();
         services.AddSingleton<IJobStore, JobStore>();
-        services.AddSingleton<IGeometryCache, GeometryCacheStore>();
+        services.AddSingleton<GeometryCacheStore>();
+        services.AddSingleton<IGeometryCache>(provider =>
+            provider.GetRequiredService<GeometryCacheStore>()
+        );
         services.AddSingleton<ISettingsStore, SettingsStore>();
         services.AddSingleton<IBorderGeometryLoader, CachedBorderGeometryLoader>();
 

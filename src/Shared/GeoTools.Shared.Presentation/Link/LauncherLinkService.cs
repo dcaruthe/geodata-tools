@@ -36,18 +36,20 @@ internal sealed class LauncherLinkService(
     private LauncherLinkServer? _server;
     private DateTimeOffset _startedAt = DateTimeOffset.MinValue;
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    internal bool HasServer => _server is not null;
+
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         if (!options.Value.Enabled)
         {
             logger.LogInformation("The launcher link is disabled.");
-            return Task.CompletedTask;
+            return;
         }
 
         try
         {
             var key = LinkKey.EnsureCreated(options.Value.KeyPath);
-            _server = new LauncherLinkServer(
+            var server = new LauncherLinkServer(
                 options.Value.SocketPath,
                 key,
                 TimeSpan.FromSeconds(options.Value.HandshakeTimeoutSeconds),
@@ -56,16 +58,17 @@ internal sealed class LauncherLinkService(
                 loggerFactory.CreateLogger<LauncherLinkServer>()
             );
             _startedAt = clock.GetUtcNow();
-            return _server.StartAsync(cancellationToken);
+            await server.StartAsync(cancellationToken);
+            _server = server;
         }
         catch (Exception exception)
         {
+            _server = null;
             logger.LogError(
                 exception,
                 "The launcher link could not start at {SocketPath}. The window still runs.",
                 options.Value.SocketPath
             );
-            return Task.CompletedTask;
         }
     }
 

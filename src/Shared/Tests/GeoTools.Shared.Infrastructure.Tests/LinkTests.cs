@@ -201,6 +201,91 @@ public sealed class LinkTests : IAsyncDisposable
         await act.Should().ThrowAsync<System.Net.Sockets.SocketException>();
     }
 
+    [Fact]
+    public async Task A_response_without_a_payload_is_a_protocol_error()
+    {
+        var key = LinkKey.EnsureCreated(KeyPath);
+        await using var session = await StartServerAsync(key, (request, _) =>
+            Task.FromResult(LinkResponse.Success(request.Id))
+        );
+        await using var client = CreateClient();
+
+        var act = async () => await client.GetStateAsync();
+
+        await act.Should().ThrowAsync<InvalidDataException>();
+    }
+
+    [Fact]
+    public async Task A_reconnect_attempt_is_throttled_briefly()
+    {
+        LinkKey.EnsureCreated(KeyPath);
+        await using var client = CreateClient();
+
+        var first = async () =>
+            await client.NavigateAsync(GeoTools.Shared.Application.Views.ViewId.Map);
+        var second = async () =>
+            await client.NavigateAsync(GeoTools.Shared.Application.Views.ViewId.Map);
+
+        await first.Should().ThrowAsync<LinkUnavailableException>();
+        await second.Should().ThrowAsync<LinkUnavailableException>();
+    }
+
+    [Fact]
+    public async Task A_failed_rotation_drops_the_session()
+    {
+        var key = LinkKey.EnsureCreated(KeyPath);
+        var session = await StartServerAsync(key, (request, _) =>
+            Task.FromResult(
+                LinkResponse.Success(request.Id, new CommandResultDto(true, "ok", null, null))
+            )
+        );
+        await using var client = CreateClient(rotateSeconds: 0);
+        await client.NavigateAsync(GeoTools.Shared.Application.Views.ViewId.Map);
+
+        await session.DisposeAsync();
+        await Task.Delay(50);
+        await client.RotateIfDueAsync();
+
+        client.IsConnected.Should().BeFalse();
+        await client.DisposeAsync();
+        await client.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task A_frame_with_an_impossible_length_is_rejected()
+    {
+        var reader = new LinkFrameReader(
+            new MemoryStream(new byte[4]),
+            new LinkKeyRing(RandomNumberGenerator.GetBytes(32))
+        );
+
+        var act = async () => await reader.ReadAsync(CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidDataException>();
+    }
+
+    [Fact]
+    public async Task A_frame_with_an_unknown_version_is_rejected()
+    {
+        var key = RandomNumberGenerator.GetBytes(32);
+        var buffer = new MemoryStream();
+        await new LinkFrameWriter(buffer, new LinkKeyRing(key)).WriteAsync(
+            LinkFrameKind.Request,
+            new byte[] { 1 },
+            CancellationToken.None
+        );
+
+        var bytes = buffer.ToArray();
+        bytes[4] = 99;
+
+        var act = async () =>
+            await new LinkFrameReader(new MemoryStream(bytes), new LinkKeyRing(key)).ReadAsync(
+                CancellationToken.None
+            );
+
+        await act.Should().ThrowAsync<InvalidDataException>();
+    }
+
     public ValueTask DisposeAsync()
     {
         try
