@@ -35,6 +35,8 @@ internal sealed class MapView(
         size => new Point(16, size.Height - 16)
     );
 
+    private readonly RetainedMapScene _retained = new();
+
     private SceneDto? _cachedScene;
     private ViewSize _cachedSize;
     private long _cachedGeometryVersion;
@@ -44,6 +46,10 @@ internal sealed class MapView(
     private bool _cachedCrosshair;
 
     public ViewId Id => ViewId.Map;
+
+    internal int RetainedBuildCount => _retained.BuildCount;
+
+    internal int RetainedTransformCount => _retained.TransformCount;
 
     public bool Handle(ViewKey key, ViewSize size) => controller.Handle(key, size);
 
@@ -78,11 +84,9 @@ internal sealed class MapView(
         );
         var camera = state.IsInitialised ? state.Camera : fitCamera;
         var viewport = camera.Viewport(size.Width, size.Height);
-        var visible = (
-            state.IsInitialised ? state.Viewport : viewport.WorldBounds(size.Width, size.Height)
-        ).Inflate(2.0 / camera.Scale);
+        var visible = viewport.WorldBounds(size.Width, size.Height);
 
-        var (scene, visiblePolylines, totalPolylines) = ComposeScene(
+        var composition = ComposeScene(
             size,
             borders,
             adminLevels,
@@ -92,9 +96,11 @@ internal sealed class MapView(
             fitCamera.Scale,
             state.Status,
             grid,
-            crosshair
+            crosshair,
+            geometryVersion,
+            settingsVersion
         );
-        _cachedScene = scene;
+        _cachedScene = composition.Scene;
         _cachedSize = size;
         _cachedGeometryVersion = geometryVersion;
         _cachedSettingsVersion = settingsVersion;
@@ -107,21 +113,23 @@ internal sealed class MapView(
                 ? camera.Scale / fitCamera.Scale
                 : 1;
         logger.LogInformation(
-            "Composed map at {Width}x{Height} with admin levels {AdminLevels} at {Zoom:0.0}x zoom: {ShapeCount} shapes, {VisiblePolylineCount}/{PolylineCount} polylines visible in {ElapsedMilliseconds} ms",
+            "Composed map at {Width}x{Height} with admin levels {AdminLevels} at {Zoom:0.0}x zoom: {ShapeCount} shapes, retained {RetainedCount}, visible {VisibleCount}/{PolylineCount} polylines, {Mode} in {ElapsedMilliseconds} ms",
             size.Width,
             size.Height,
             string.Join(",", adminLevels),
             zoom,
-            scene.Shapes.Count,
-            visiblePolylines,
-            totalPolylines,
+            composition.Scene.Shapes.Count,
+            composition.RetainedCount,
+            composition.VisibleCount,
+            composition.TotalPolylines,
+            composition.Translated ? "translated" : "rebuilt",
             stopwatch.ElapsedMilliseconds
         );
 
-        return scene;
+        return composition.Scene;
     }
 
-    private (SceneDto Scene, int VisiblePolylines, int TotalPolylines) ComposeScene(
+    private ComposeResult ComposeScene(
         ViewSize size,
         BorderGeometry borders,
         int[] adminLevels,
@@ -131,32 +139,52 @@ internal sealed class MapView(
         double fitScale,
         string status,
         bool grid,
-        bool crosshair
+        bool crosshair,
+        long geometryVersion,
+        long settingsVersion
     )
     {
         var composition = new ViewComposition(size, Color.Black);
         if (grid)
             Grid.Compose(composition);
-        var (visiblePolylines, totalPolylines) = ComposeBorders(
+        var bordersResult = ComposeBorders(
             composition,
             borders,
             adminLevels,
             viewport,
-            visible
+            visible,
+            camera,
+            size,
+            grid,
+            crosshair,
+            geometryVersion,
+            settingsVersion
         );
         if (crosshair)
             Crosshair.Compose(composition);
         ComposeStatus(composition, camera, fitScale, status);
         KeyHint.Compose(composition);
-        return (composition.Build(), visiblePolylines, totalPolylines);
+        return new ComposeResult(
+            composition.Build(),
+            bordersResult.Visible,
+            bordersResult.TotalPolylines,
+            bordersResult.Retained,
+            bordersResult.Translated
+        );
     }
 
-    private (int VisiblePolylines, int TotalPolylines) ComposeBorders(
+    private BordersResult ComposeBorders(
         ViewComposition composition,
         BorderGeometry borders,
         int[] adminLevels,
         MapViewport viewport,
-        WorldRect visible
+        WorldRect visible,
+        MapCamera camera,
+        ViewSize size,
+        bool grid,
+        bool crosshair,
+        long geometryVersion,
+        long settingsVersion
     )
     {
         var available = geometryStore.AvailableAdminLevels;
@@ -165,13 +193,13 @@ internal sealed class MapView(
         if (borders.Polylines.Count == 0)
         {
             AddMessage(composition, EmptyMessage());
-            return (0, totalPolylines);
+            return new BordersResult(0, totalPolylines, 0, Translated: false);
         }
 
         if (adminLevels.Length == 0)
         {
             AddMessage(composition, "No admin levels selected. Change them in Maintenance (2).");
-            return (0, totalPolylines);
+            return new BordersResult(0, totalPolylines, 0, Translated: false);
         }
 
         if (!adminLevels.Any(available.Contains))
@@ -180,23 +208,53 @@ internal sealed class MapView(
                 composition,
                 $"No borders at admin levels {string.Join(",", adminLevels)}. Extracted: {string.Join(",", available)}."
             );
-            return (0, totalPolylines);
+            return new BordersResult(0, totalPolylines, 0, Translated: false);
         }
 
-        var levels = adminLevels.ToHashSet();
-        var visiblePolylines = MapGeometry.CountVisible(borders.WorldPolylines, levels, visible);
+        // A pan keeps the same scale and transforms the retained arrays. A zoom rebuilds so the
+        // coverage margin and the simplification tolerance stay one viewport at the new scale,
+        // which also lets a later pan leave a coverage that no longer matches the view.
+        var translated =
+            _retained.Scale == camera.Scale
+            && _retained.CanTransformTo(
+                geometryVersion,
+                settingsVersion,
+                adminLevels,
+                grid,
+                crosshair,
+                size,
+                camera,
+                visible
+            );
 
-        foreach (
-            var polyline in MapGeometry.Project(borders.WorldPolylines, levels, viewport, visible)
-        )
+        if (translated)
         {
-            if (polyline.Closed)
-                composition.Add(new PolygonDto(polyline.Points, BorderColor, 1, Filled: false));
-            else
-                composition.Add(new PolylineDto(polyline.Points, BorderColor, 1));
+            _retained.TransformTo(camera, size);
+        }
+        else
+        {
+            _retained.Build(
+                borders,
+                adminLevels,
+                camera,
+                size,
+                RetainedMapScene.Coverage(visible, camera, size),
+                grid,
+                crosshair,
+                geometryVersion,
+                settingsVersion
+            );
         }
 
-        return (visiblePolylines, totalPolylines);
+        foreach (var shape in _retained.Shapes(visible, viewport))
+            composition.Add(shape);
+
+        return new BordersResult(
+            _retained.VisibleCount,
+            totalPolylines,
+            _retained.RetainedCount,
+            translated
+        );
     }
 
     private string EmptyMessage()
@@ -240,4 +298,19 @@ internal sealed class MapView(
         adminLevels is null
             ? []
             : adminLevels.Where(level => level > 0).Distinct().Order().ToArray();
+
+    private sealed record ComposeResult(
+        SceneDto Scene,
+        int VisibleCount,
+        int TotalPolylines,
+        int RetainedCount,
+        bool Translated
+    );
+
+    private sealed record BordersResult(
+        int Visible,
+        int TotalPolylines,
+        int Retained,
+        bool Translated
+    );
 }

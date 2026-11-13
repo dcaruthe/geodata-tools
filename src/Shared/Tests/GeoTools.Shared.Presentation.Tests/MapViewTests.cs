@@ -119,6 +119,41 @@ public sealed class MapViewTests
     }
 
     [Fact]
+    public void Compose_reuses_the_retained_scene_for_a_pan_at_the_same_scale()
+    {
+        var store = CreateStore(Borders());
+        var mapState = new MapStateStore();
+        var view = CreateView(store, mapState: mapState);
+        var size = new ViewSize(800, 600);
+        view.Compose(size);
+        var fit = MapCamera.Fit(Borders().Bounds, size.Width, size.Height, 24f);
+
+        var panned = fit.Pan(64, 0, size.Width, size.Height);
+        Publish(mapState, panned, size);
+        view.Compose(size);
+
+        view.RetainedBuildCount.Should().Be(1);
+        view.RetainedTransformCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void Compose_rebuilds_the_retained_scene_for_a_zoom()
+    {
+        var store = CreateStore(Borders());
+        var mapState = new MapStateStore();
+        var view = CreateView(store, mapState: mapState);
+        var size = new ViewSize(800, 600);
+        view.Compose(size);
+        var fit = MapCamera.Fit(Borders().Bounds, size.Width, size.Height, 24f);
+
+        Publish(mapState, fit.Zoom(1.4), size);
+        view.Compose(size);
+
+        view.RetainedBuildCount.Should().Be(2);
+        view.RetainedTransformCount.Should().Be(0);
+    }
+
+    [Fact]
     public void Compose_labels_an_empty_admin_level_set()
     {
         var store = new BorderGeometryStore();
@@ -261,6 +296,16 @@ public sealed class MapViewTests
             NullLogger<MapView>.Instance
         );
     }
+
+    private static void Publish(MapStateStore store, MapCamera camera, ViewSize size) =>
+        store.Set(
+            new MapViewState(
+                camera,
+                camera.CenterGeo,
+                camera.Viewport(size.Width, size.Height).WorldBounds(size.Width, size.Height),
+                string.Empty
+            )
+        );
 
     private static BorderGeometryStore CreateStore(BorderGeometry geometry)
     {

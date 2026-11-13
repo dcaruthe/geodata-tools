@@ -11,6 +11,10 @@ and the zoom relative to the initial fit.
 - `map-camera-status` draws `Center <lat>N <lon>E   Zoom <factor>x` at the top left.
 - `map-crosshair-center` keeps the crosshair at the viewport center while the borders move.
 - `map-camera-initial` still fits the border bounds with 24 px padding before any key.
+- `map-scene-retained` keeps the level-filtered screen-space polylines and reuses them across a
+  same-scale pan by transforming the points in place.
+- `map-scene-culled` emits only the retained shapes whose screen bounds intersect the viewport, so
+  off-screen geometry never reaches the scene or the renderer.
 
 ## How to get to it (user POV)
 
@@ -57,6 +61,33 @@ Key names for `app-session.sh keys`:
 - **Crosshair.** The crosshair is at `(width / 2, height / 2)` in every capture, including after
   a pan or zoom.
 
+## Retained scene
+
+`RetainedMapScene` keeps the level-filtered screen-space polylines and their screen bounds. A pan
+at the same scale transforms the retained points in place. A zoom rebuilds the projection so the
+coverage margin and simplification tolerance stay one viewport at the new scale. A change to the
+geometry, settings, admin levels, view size, grid flag, or crosshair flag also rebuilds, as does a
+view outside the retained coverage. Every compose emits only the shapes that intersect the visible
+viewport. The compose log line ends with
+`retained <n>, visible <n>/<total> polylines, translated|rebuilt in <n> ms`.
+
+Measurements at 1200x800 with admin level 2, database
+`.audit/verify/20261113T115424Z-300813/state.db`, run
+`.audit/verify/20261113T122154Z-332362`:
+
+| Step | Before (`ea59e47`) | After | Mode |
+| --- | --- | --- | --- |
+| Initial fit | 175 ms | 175 ms | rebuilt |
+| First compose after a zoom | 56-95 ms | 152-200 ms | rebuilt |
+| Pan `Right` at 2.7x | 81-86 ms | 5 ms | translated |
+| Pan `w` at 2.7x | 81-95 ms | 4 ms | translated |
+| Pan `a` at 2.7x | 82-96 ms | 4 ms | translated |
+| Pans at 5.4x before the coverage exit | n/a | 2-3 ms | translated |
+| Pan that leaves the coverage at 5.4x | n/a | 140 ms | rebuilt |
+
+The rebuilds are slower than a reuse because they project the coverage margin, which can cover the
+whole world at low zoom. A same-scale pan is the path the target covers.
+
 ## Pass predicates
 
 - `Camera center` appears once per handled pan or zoom key, with the formatted center and scale.
@@ -68,13 +99,21 @@ Key names for `app-session.sh keys`:
   while the crosshair arms and circle stay centered.
 - The first capture fits the border bounds with 24 px padding and reads `Zoom 1.0x`.
 - Unhandled keys such as `Enter` or `Tab` do not print `Camera center` and do not move the camera.
+- A same-scale pan logs `translated` and composes in under 20 ms.
+- The first compose after a zoom logs `rebuilt`, and later same-scale pans log `translated`.
+- The compose line reports `retained` at least `visible`; when the coverage includes shapes outside
+  the viewport, `visible` is smaller, which proves the cull.
+- After a pan that leaves the coverage, the compose logs `rebuilt`, and the next pan logs
+  `translated` again.
 
 ## Gotchas
 
-- Each pan or zoom recomposes the whole scene in this commit. At 1200x800 with admin level 2 a
-  compose takes about 180 ms, so wait for the new `Composed map` line and then allow a moment
-  before capturing. Waiting only for `Camera center` can capture the previous frame.
-- A retained scene lands in a later commit.
+- A zoom rebuilds the retained projection at the new scale and takes about 150-170 ms at 1200x800
+  with admin level 2. A same-scale pan transforms and takes 2-5 ms. Wait for the new `Composed map`
+  line before capturing; waiting only for `Camera center` can capture the previous frame.
+- The coverage margin is one full viewport on every side. A pan can leave it only at high zoom
+  (above about 4x), where the viewport is a small part of the coverage. A low-zoom pan stays inside
+  and transforms.
 - The camera starts uninitialised. The first pan or zoom fits the current geometry and then
   applies the key, so the first step is relative to the initial fit, not to a stale camera.
 - A pan at the fit scale is clamped back to the centered fit because the whole bounds already
