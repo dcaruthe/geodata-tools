@@ -2,7 +2,6 @@ using FluentAssertions;
 using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Infrastructure.Rendering;
 using GeoTools.Shared.Presentation.Link;
-using GeoTools.Shared.Presentation.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

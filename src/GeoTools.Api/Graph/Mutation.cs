@@ -61,6 +61,14 @@ public sealed class Mutation
         CancellationToken cancellationToken
     ) => facade.SetToleranceAsync(tolerance, cancellationToken);
 
+    public Task<CommandResultDto> SetWindowSizeAsync(
+        bool maximized,
+        int width,
+        int height,
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.SetWindowSizeAsync(maximized, width, height, cancellationToken);
+
     public Task<CommandResultDto> SetFeatureFlagAsync(
         string flag,
         bool enabled,

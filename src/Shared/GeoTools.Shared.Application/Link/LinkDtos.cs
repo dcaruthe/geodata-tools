@@ -50,6 +50,7 @@ public sealed record AppStateDto(
     string WindowTitle,
     int WindowWidth,
     int WindowHeight,
+    bool WindowMaximized,
     ProgressDto Progress,
     RunDto? LatestRun,
     LinkStatusDto Link,
@@ -88,8 +89,11 @@ public sealed record SettingsDto(
     int[] DisplayLevels,
     int[] ExtractLevels,
     double Tolerance,
-    IReadOnlyDictionary<string, bool> Flags
+    IReadOnlyDictionary<string, bool> Flags,
+    WindowSizeDto Window
 );
+
+public sealed record WindowSizeDto(bool Maximized, int Width, int Height);
 
 public sealed record ScreenshotDto(
     byte[] Png,

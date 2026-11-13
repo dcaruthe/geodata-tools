@@ -128,6 +128,13 @@ public sealed class GeoToolsFacade(
         CancellationToken cancellationToken
     ) => link.SetToleranceAsync(tolerance, cancellationToken);
 
+    public Task<CommandResultDto> SetWindowSizeAsync(
+        bool maximized,
+        int width,
+        int height,
+        CancellationToken cancellationToken
+    ) => link.SetWindowSizeAsync(maximized, width, height, cancellationToken);
+
     public Task<CommandResultDto> SetFeatureFlagAsync(
         string flag,
         bool enabled,
@@ -146,7 +153,8 @@ public sealed class GeoToolsFacade(
                 live.DisplayLevels,
                 live.ExtractLevels,
                 live.Tolerance,
-                live.Flags.Select(flag => new FlagDto(flag.Key, flag.Value)).ToArray()
+                live.Flags.Select(flag => new FlagDto(flag.Key, flag.Value)).ToArray(),
+                live.Window
             );
         }
         catch (LinkUnavailableException)
@@ -173,8 +181,14 @@ public sealed class GeoToolsFacade(
                     nameof(FeatureFlag.GeodataAutoPull),
                     settings.IsEnabled(FeatureFlag.GeodataAutoPull)
                 ),
-            }
+            },
+            ToDto(settings.Window)
         );
+
+    private static WindowSizeDto ToDto(WindowSize size) =>
+        size is FixedWindow fixedWindow
+            ? new WindowSizeDto(false, fixedWindow.Width, fixedWindow.Height)
+            : new WindowSizeDto(true, 0, 0);
 
     public async Task<RunDetailDto?> GetLatestRunAsync(CancellationToken cancellationToken)
     {

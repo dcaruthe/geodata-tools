@@ -138,6 +138,19 @@ public sealed class LauncherLinkClient(
             await SendAsync(new SetFeatureFlagRequest(NewId(), flag, enabled), cancellationToken)
         );
 
+    public async Task<CommandResultDto> SetWindowSizeAsync(
+        bool maximized,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default
+    ) =>
+        Payload<CommandResultDto>(
+            await SendAsync(
+                new SetWindowSizeRequest(NewId(), maximized, width, height),
+                cancellationToken
+            )
+        );
+
     public async Task<CommandResultDto> ResetSettingsAsync(
         CancellationToken cancellationToken = default
     ) =>

@@ -30,6 +30,7 @@ public sealed class LinkContractTests
             new SetToleranceRequest("12", 0.005),
             new SetFeatureFlagRequest("13", "MapGrid", false),
             new ResetSettingsRequest("14"),
+            new SetWindowSizeRequest("15", false, 1600, 900),
         };
 
     [Theory]
@@ -56,7 +57,8 @@ public sealed class LinkContractTests
             [2, 4],
             [2],
             0.002,
-            new Dictionary<string, bool> { ["MapGrid"] = true }
+            new Dictionary<string, bool> { ["MapGrid"] = true },
+            new WindowSizeDto(false, 1600, 900)
         );
 
         var response = LinkResponse.Success("abc", settings);

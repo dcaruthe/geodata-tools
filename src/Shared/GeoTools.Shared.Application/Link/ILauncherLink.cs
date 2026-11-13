@@ -71,6 +71,13 @@ public interface ILauncherLink
         CancellationToken cancellationToken = default
     );
 
+    Task<CommandResultDto> SetWindowSizeAsync(
+        bool maximized,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default
+    );
+
     Task<CommandResultDto> SetFeatureFlagAsync(
         string flag,
         bool enabled,

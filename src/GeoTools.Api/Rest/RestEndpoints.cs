@@ -146,6 +146,13 @@ public static class RestEndpoints
             .WithSummary("Sets the geometry simplify tolerance.");
 
         api.MapPut(
+                "/settings/window",
+                (WindowBody body, GeoToolsFacade facade, CancellationToken token) =>
+                    facade.SetWindowSizeAsync(body.Maximized, body.Width, body.Height, token)
+            )
+            .WithSummary("Maximizes the window or sets a fixed size.");
+
+        api.MapPut(
                 "/settings/flags/{name}",
                 (string name, EnabledBody body, GeoToolsFacade facade, CancellationToken token) =>
                     facade.SetFeatureFlagAsync(name, body.Enabled, token)

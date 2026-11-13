@@ -26,6 +26,22 @@ public sealed class MaintenanceControllerTests
     }
 
     [Fact]
+    public async Task Adjusting_the_window_size_persists_and_updates_the_snapshot()
+    {
+        var (controller, settings, _) = Create();
+        await controller.AttachAsync(new FakeMessageBus());
+        Select(controller, "windowSize");
+
+        controller.Handle(ViewKey.Right);
+
+        settings.Window.Should().Be(new FixedWindow(1280, 800));
+        controller
+            .Snapshot.Rows.Single(row => row.Id == "windowSize")
+            .Value.Should()
+            .Be("1280x800");
+    }
+
+    [Fact]
     public async Task Adjusting_display_levels_updates_the_settings_store()
     {
         var (controller, settings, _) = Create();

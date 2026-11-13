@@ -346,6 +346,8 @@ public sealed class StateInitializerTests
 
         public GeodataSettings Geodata { get; } = new([2, 4], 0.002);
 
+        public WindowSize Window { get; } = WindowSize.Maximized;
+
         public long Version => 0;
 
         public event EventHandler? Changed
@@ -374,6 +376,11 @@ public sealed class StateInitializerTests
 
         public Task<SettingsResult> SetSimplifyToleranceAsync(
             double tolerance,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(SettingsResult.Ok);
+
+        public Task<SettingsResult> SetWindowSizeAsync(
+            WindowSize size,
             CancellationToken cancellationToken = default
         ) => Task.FromResult(SettingsResult.Ok);
 

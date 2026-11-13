@@ -5,8 +5,8 @@ using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Infrastructure.Link;
 using GeoTools.Shared.Infrastructure.Logging;
+using GeoTools.Shared.Presentation.Controls;
 using GeoTools.Shared.Presentation.Link;
-using GeoTools.Shared.Presentation.Options;
 using GeoTools.Shared.Presentation.Views;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -59,12 +59,16 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
         state.ProtocolVersion.Should().Be(LinkProtocol.Version);
         state.LatestRun!.Status.Should().Be("Running");
         state.Diagnostics.SocketPath.Should().Contain("launcher.sock");
+        state.WindowWidth.Should().Be(1024);
+        state.WindowHeight.Should().Be(768);
+        state.WindowMaximized.Should().BeFalse();
         logs.Entries.Should().ContainSingle();
         logs.Entries[0].Message.Should().Be("a warning from the launcher");
         maintenance.Rows.Should().NotBeEmpty();
         maintenance.SelectedRowId.Should().NotBeNull();
         settings.DisplayLevels.Should().Equal(2);
         settings.Tolerance.Should().Be(0.002);
+        settings.Window.Maximized.Should().BeTrue();
     }
 
     [Fact]
@@ -75,11 +79,29 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
         (await harness.Client.SetDisplayLevelsAsync([2, 4])).Accepted.Should().BeTrue();
         (await harness.Client.SetExtractLevelsAsync([2, 4, 6])).Accepted.Should().BeTrue();
         (await harness.Client.SetToleranceAsync(0.005)).Accepted.Should().BeTrue();
+        (await harness.Client.SetWindowSizeAsync(false, 1600, 900)).Accepted.Should().BeTrue();
         (await harness.Client.SetFeatureFlagAsync("MapGrid", false)).Accepted.Should().BeTrue();
         (await harness.Client.ResetSettingsAsync()).Accepted.Should().BeTrue();
 
         harness.Settings.Map.AdminLevels.Should().Equal(2);
         harness.Settings.IsEnabled(FeatureFlag.MapGrid).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Window_size_crosses_the_link_in_both_directions()
+    {
+        await using var harness = await Harness.CreateAsync(_directory);
+
+        (await harness.Client.SetWindowSizeAsync(false, 1600, 900)).Accepted.Should().BeTrue();
+        var settings = await harness.Client.GetSettingsAsync();
+
+        harness.Settings.Window.Should().Be(new FixedWindow(1600, 900));
+        settings.Window.Should().Be(new WindowSizeDto(false, 1600, 900));
+
+        var invalid = await harness.Client.SetWindowSizeAsync(false, 10, 10);
+
+        invalid.Accepted.Should().BeFalse();
+        invalid.Error.Should().Contain("640x480");
     }
 
     [Fact]
@@ -239,6 +261,8 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
 
             var inbox = new WindowCommandInbox();
             var logs = new InMemoryLogStore();
+            var windowState = new WindowStateStore();
+            windowState.Set(new WindowStateSnapshot(1024, 768, false));
             var service = new LauncherLinkService(
                 Microsoft.Extensions.Options.Options.Create(options),
                 Microsoft.Extensions.Options.Options.Create(
@@ -253,6 +277,7 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
                 progress,
                 jobs,
                 settings,
+                windowState,
                 controller,
                 new FakeNavigationMediator(),
                 logs,

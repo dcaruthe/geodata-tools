@@ -15,6 +15,8 @@ public sealed class MaintenanceRowsTests
         ids.Should()
             .Contain([
                 "status",
+                "section:window",
+                "windowSize",
                 "displayLevels",
                 "tolerance",
                 "extractLevels",
@@ -40,6 +42,22 @@ public sealed class MaintenanceRowsTests
         rows.Single(row => row.Id == "action:repull").Enabled.Should().BeFalse();
         rows.Single(row => row.Id == "action:cancel").Enabled.Should().BeTrue();
         rows.Should().Contain(row => row.Id == "progress");
+    }
+
+    [Fact]
+    public void Build_includes_the_window_section_and_size()
+    {
+        var rows = MaintenanceRows.Build(Inputs());
+
+        rows.Should()
+            .Contain(row => row.Id == "section:window" && row.Kind == MaintenanceRowKind.Info);
+        rows.Should()
+            .Contain(row =>
+                row.Id == "windowSize"
+                && row.Label == "Window size"
+                && row.Value == "1600x900"
+                && row.Kind == MaintenanceRowKind.Choice
+            );
     }
 
     [Fact]
@@ -197,6 +215,7 @@ public sealed class MaintenanceRowsTests
             null,
             new MapSettings([2]),
             new GeodataSettings([2, 4], 0.002),
+            new FixedWindow(1600, 900),
             new Dictionary<FeatureFlag, bool>
             {
                 [FeatureFlag.MapGrid] = true,

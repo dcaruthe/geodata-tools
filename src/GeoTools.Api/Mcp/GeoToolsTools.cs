@@ -3,6 +3,7 @@ using GeoTools.Api.Contracts;
 using GeoTools.Api.Facade;
 using GeoTools.Shared.Application.Link;
 using GeoTools.Shared.Application.Views;
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -167,9 +168,30 @@ public sealed class GeoToolsTools(GeoToolsFacade facade)
         );
 
     [McpServerTool(Name = "settings", ReadOnly = true)]
-    [Description("Current display levels, extract levels, simplify tolerance, and feature flags.")]
+    [Description(
+        "Current display levels, extract levels, simplify tolerance, window size, and feature flags."
+    )]
     public Task<SettingsViewDto> SettingsAsync(CancellationToken cancellationToken) =>
         facade.GetSettingsAsync(cancellationToken);
+
+    [McpServerTool(Name = "set_window", Idempotent = true)]
+    [Description(
+        "Maximizes the window, or sets a fixed size between 640x480 and 7680x4320. Dimensions are ignored when maximized."
+    )]
+    public Task<CommandResultDto> SetWindowAsync(
+        [Description("Maximize the window instead of using width and height.")] bool maximized,
+        [Description("Width in pixels when the window is not maximized.")] int width = 0,
+        [Description("Height in pixels when the window is not maximized.")] int height = 0,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (!maximized && (width <= 0 || height <= 0))
+            throw new McpException(
+                "Width and height must be positive when the window is not maximized."
+            );
+
+        return facade.SetWindowSizeAsync(maximized, width, height, cancellationToken);
+    }
 
     [McpServerTool(Name = "update_settings")]
     [Description(

@@ -110,6 +110,32 @@ public sealed class ApiSurfaceTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
+    public async Task Settings_expose_the_window_size()
+    {
+        var json = await GetJson("/api/settings");
+
+        json.GetProperty("window").GetProperty("maximized").GetBoolean().Should().BeTrue();
+        json.GetProperty("window").GetProperty("width").GetInt32().Should().Be(0);
+        json.GetProperty("window").GetProperty("height").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Setting_the_window_without_a_launcher_returns_conflict()
+    {
+        var response = await Client.PutAsJsonAsync(
+            "/api/settings/window",
+            new
+            {
+                maximized = false,
+                width = 1600,
+                height = 900,
+            }
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task A_screenshot_without_a_launcher_returns_conflict()
     {
         var response = await Client.GetAsync("/api/launcher/screenshot");

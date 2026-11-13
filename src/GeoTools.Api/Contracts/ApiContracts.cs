@@ -10,7 +10,8 @@ public sealed record SettingsViewDto(
     int[] DisplayLevels,
     int[] ExtractLevels,
     double Tolerance,
-    IReadOnlyList<FlagDto> Flags
+    IReadOnlyList<FlagDto> Flags,
+    WindowSizeDto Window
 );
 
 public sealed record LocalStateDto(
@@ -127,6 +128,8 @@ public sealed record ActivateRowBody(string RowId, bool Confirm);
 public sealed record LevelsBody(int[] Levels);
 
 public sealed record ToleranceBody(double Tolerance);
+
+public sealed record WindowBody(bool Maximized, int Width, int Height);
 
 public sealed record EnabledBody(bool Enabled);
 

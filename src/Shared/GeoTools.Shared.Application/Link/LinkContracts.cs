@@ -17,6 +17,7 @@ namespace GeoTools.Shared.Application.Link;
 [JsonDerivedType(typeof(SetDisplayLevelsRequest), "set-display-levels")]
 [JsonDerivedType(typeof(SetExtractLevelsRequest), "set-extract-levels")]
 [JsonDerivedType(typeof(SetToleranceRequest), "set-tolerance")]
+[JsonDerivedType(typeof(SetWindowSizeRequest), "set-window-size")]
 [JsonDerivedType(typeof(SetFeatureFlagRequest), "set-feature-flag")]
 [JsonDerivedType(typeof(ResetSettingsRequest), "reset-settings")]
 public abstract record LinkRequest(string Id);
@@ -53,6 +54,9 @@ public sealed record SetDisplayLevelsRequest(string Id, int[] Levels) : LinkRequ
 public sealed record SetExtractLevelsRequest(string Id, int[] Levels) : LinkRequest(Id);
 
 public sealed record SetToleranceRequest(string Id, double Tolerance) : LinkRequest(Id);
+
+public sealed record SetWindowSizeRequest(string Id, bool Maximized, int Width, int Height)
+    : LinkRequest(Id);
 
 public sealed record SetFeatureFlagRequest(string Id, string Flag, bool Enabled) : LinkRequest(Id);
 

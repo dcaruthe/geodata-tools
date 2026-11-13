@@ -400,12 +400,125 @@ public sealed class SettingsStoreTests
         reloaded.IsEnabled(FeatureFlag.MapCrosshair).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Window_defaults_to_maximized_from_options()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var store = CreateStore(database, new FakeMessageBus());
+
+        await store.ReloadAsync();
+
+        store.Window.Should().Be(WindowSize.Maximized);
+    }
+
+    [Fact]
+    public async Task A_fixed_window_default_comes_from_the_options()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var store = new SettingsStore(
+            database.Factory,
+            Options.Create(new MapOptions { AdminLevels = [2] }),
+            Options.Create(new GeodataOptions()),
+            Options.Create(new FeaturesOptions()),
+            Options.Create(
+                new WindowOptions
+                {
+                    Width = 1440,
+                    Height = 900,
+                    Maximized = false,
+                }
+            ),
+            new FakeMessageBus(),
+            TimeProvider.System,
+            NullLogger<SettingsStore>.Instance
+        );
+
+        await store.ReloadAsync();
+
+        store.Window.Should().Be(new FixedWindow(1440, 900));
+    }
+
+    [Fact]
+    public async Task Window_size_persists_and_publishes()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var bus = new FakeMessageBus();
+        var store = CreateStore(database, bus);
+
+        var result = await store.SetWindowSizeAsync(new FixedWindow(1600, 900));
+
+        result.Accepted.Should().BeTrue();
+        store.Window.Should().Be(new FixedWindow(1600, 900));
+        bus.Published.OfType<SettingsChanged>()
+            .Should()
+            .ContainSingle(change =>
+                change.Key == SettingKeys.WindowSize && change.Value == "1600x900"
+            );
+
+        var reloaded = CreateStore(database, new FakeMessageBus());
+        await reloaded.ReloadAsync();
+        reloaded.Window.Should().Be(new FixedWindow(1600, 900));
+    }
+
+    [Fact]
+    public async Task An_invalid_window_size_is_rejected()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var store = CreateStore(database, new FakeMessageBus());
+        await store.ReloadAsync();
+
+        var result = await store.SetWindowSizeAsync(new FixedWindow(100, 100));
+
+        result.Accepted.Should().BeFalse();
+        result.Error.Should().Contain("640x480");
+        store.Window.Should().Be(WindowSize.Maximized);
+    }
+
+    [Fact]
+    public async Task A_corrupt_window_setting_falls_back_to_the_default()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        await using (var context = await database.Factory.CreateDbContextAsync())
+        {
+            context.Settings.Add(
+                new GeoTools.Shared.Infrastructure.Persistence.SettingRow
+                {
+                    Key = SettingKeys.WindowSize,
+                    Value = "huge",
+                    Source = "User",
+                    UpdatedAt = 0,
+                }
+            );
+            await context.SaveChangesAsync();
+        }
+
+        var store = CreateStore(database, new FakeMessageBus());
+        await store.ReloadAsync();
+
+        store.Window.Should().Be(WindowSize.Maximized);
+    }
+
+    [Fact]
+    public async Task Reset_restores_the_window_default()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var store = CreateStore(database, new FakeMessageBus());
+        await store.ReloadAsync();
+        await store.SetWindowSizeAsync(new FixedWindow(1280, 800));
+
+        var result = await store.ResetToConfigurationAsync();
+
+        result.Accepted.Should().BeTrue();
+        store.Window.Should().Be(WindowSize.Maximized);
+    }
+
     private static SettingsStore CreateStore(TestDatabase database, FakeMessageBus bus) =>
         new(
             database.Factory,
             Options.Create(new MapOptions { AdminLevels = [2] }),
             Options.Create(new GeodataOptions()),
             Options.Create(new FeaturesOptions()),
+            Options.Create(new WindowOptions()),
             bus,
             TimeProvider.System,
             NullLogger<SettingsStore>.Instance

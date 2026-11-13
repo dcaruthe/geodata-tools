@@ -265,6 +265,7 @@ internal sealed class MaintenanceController(
             jobs.LatestRun,
             settings.Map,
             settings.Geodata,
+            settings.Window,
             flags,
             geometry.AvailableAdminLevels,
             summaries,
@@ -354,6 +355,10 @@ internal sealed class MaintenanceController(
                         );
                     return result;
                 });
+                break;
+            case "windowSize":
+                var window = WindowSizePresets.Next(settings.Window, direction);
+                Apply(() => settings.SetWindowSizeAsync(window));
                 break;
             default:
                 if (row.Id.StartsWith("flag:", StringComparison.Ordinal))

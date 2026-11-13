@@ -6,7 +6,7 @@ using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Application.Storage;
 using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Infrastructure.Link;
-using GeoTools.Shared.Presentation.Options;
+using GeoTools.Shared.Presentation.Controls;
 using GeoTools.Shared.Presentation.Views;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -26,6 +26,7 @@ internal sealed class LauncherLinkService(
     IProgressStore progress,
     IJobStore jobs,
     ISettingsStore settings,
+    IWindowStateStore windowState,
     MaintenanceController maintenance,
     INavigationMediator mediator,
     ILogStore logs,
@@ -120,6 +121,15 @@ internal sealed class LauncherLinkService(
                     tolerance.Id,
                     await settings.SetSimplifyToleranceAsync(tolerance.Tolerance, cancellationToken)
                 ),
+                SetWindowSizeRequest size => Command(
+                    size.Id,
+                    await settings.SetWindowSizeAsync(
+                        size.Maximized
+                            ? WindowSize.Maximized
+                            : new FixedWindow(size.Width, size.Height),
+                        cancellationToken
+                    )
+                ),
                 SetFeatureFlagRequest flag => await SetFlagAsync(flag, cancellationToken),
                 ResetSettingsRequest reset => Command(
                     reset.Id,
@@ -179,6 +189,7 @@ internal sealed class LauncherLinkService(
         var startedAt = ReadStartTime(process);
         var current = progress.Current;
         var run = jobs.LatestRun;
+        var live = windowState.Current;
 
         return new AppStateDto(
             typeof(AppStateDto).Assembly.GetName().Version?.ToString() ?? "unknown",
@@ -188,8 +199,9 @@ internal sealed class LauncherLinkService(
             (long)Math.Max(0, (clock.GetUtcNow() - startedAt).TotalSeconds),
             mediator.ActiveView,
             window.Value.Title,
-            window.Value.Width,
-            window.Value.Height,
+            live.Width,
+            live.Height,
+            live.Maximized,
             new ProgressDto(
                 current.Phase.ToString(),
                 current.Stage,
@@ -262,8 +274,14 @@ internal sealed class LauncherLinkService(
                 [nameof(FeatureFlag.GeodataAutoPull)] = settings.IsEnabled(
                     FeatureFlag.GeodataAutoPull
                 ),
-            }
+            },
+            ToDto(settings.Window)
         );
+
+    private static WindowSizeDto ToDto(WindowSize size) =>
+        size is FixedWindow fixedWindow
+            ? new WindowSizeDto(false, fixedWindow.Width, fixedWindow.Height)
+            : new WindowSizeDto(true, 0, 0);
 
     private DateTimeOffset ReadStartTime(Process process)
     {

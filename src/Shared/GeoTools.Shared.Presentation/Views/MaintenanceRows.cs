@@ -41,6 +41,7 @@ internal sealed record MaintenanceInputs(
     RunRecord? LatestRun,
     MapSettings Map,
     GeodataSettings Geodata,
+    WindowSize Window,
     IReadOnlyDictionary<FeatureFlag, bool> Flags,
     IReadOnlyList<int> AvailableLevels,
     IReadOnlyList<MaintenanceArtifactSummary> Artifacts,
@@ -107,6 +108,11 @@ internal static class MaintenanceRows
                 inputs.Geodata.SimplifyToleranceDegrees.ToString("0.###"),
                 MaintenanceRowKind.Choice
             )
+        );
+
+        rows.Add(new("section:window", "Window", "", MaintenanceRowKind.Info, false));
+        rows.Add(
+            new("windowSize", "Window size", inputs.Window.Display, MaintenanceRowKind.Choice)
         );
 
         rows.Add(new("section:extract", "Extraction", "", MaintenanceRowKind.Info, false));
