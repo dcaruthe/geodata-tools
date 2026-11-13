@@ -4,6 +4,7 @@ using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Application.Storage;
 using GeoTools.Shared.Domain.Geospatial;
+using GeoTools.Shared.Infrastructure.Geodata;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -14,6 +15,7 @@ internal sealed class CachedBorderGeometryLoader(
     ISettingsStore settings,
     IOptions<GeodataOptions> options,
     TimeProvider clock,
+    IRegionIndexBuilder indexBuilder,
     ILogger<CachedBorderGeometryLoader> logger
 ) : IBorderGeometryLoader
 {
@@ -48,7 +50,8 @@ internal sealed class CachedBorderGeometryLoader(
 
         var keys = new string[files.Length];
         var blobs = new GeometryBlob?[files.Length];
-        var misses = new List<int>();
+        var cacheMisses = new List<int>();
+        var indexMisses = new List<int>();
         var cacheHits = 0;
         var processed = 0;
         var progressGate = new object();
@@ -65,15 +68,16 @@ internal sealed class CachedBorderGeometryLoader(
         for (var index = 0; index < files.Length; index++)
         {
             keys[index] = BorderCacheKeys.Compute(files[index], tolerance, levels);
+
             var entry = await cache.TryGetAsync(keys[index], cancellationToken);
+            var cacheHit = false;
             if (entry is not null)
             {
                 try
                 {
                     blobs[index] = GeometryBlobCodec.Decode(entry.Blob);
+                    cacheHit = true;
                     cacheHits++;
-                    Report();
-                    continue;
                 }
                 catch (Exception exception)
                     when (exception is InvalidDataException or EndOfStreamException)
@@ -86,21 +90,31 @@ internal sealed class CachedBorderGeometryLoader(
                 }
             }
 
-            misses.Add(index);
+            if (!cacheHit)
+                cacheMisses.Add(index);
+
+            if (!await indexBuilder.IsIndexedAsync(keys[index], cancellationToken))
+                indexMisses.Add(index);
+
+            if (cacheHit)
+                Report();
         }
 
+        var toParse = new HashSet<int>(cacheMisses);
+        toParse.UnionWith(indexMisses);
+        var parseList = toParse.Order().ToArray();
         var parsedFiles = new ParsedBorderFile?[files.Length];
-        Parallel.For(0, misses.Count, index =>
+
+        Parallel.For(0, parseList.Length, index =>
         {
-            parsedFiles[misses[index]] = GeoJsonSeqParser.ParseFile(
-                files[misses[index]],
-                tolerance
-            );
-            Report();
+            var fileIndex = parseList[index];
+            parsedFiles[fileIndex] = GeoJsonSeqParser.ParseFile(files[fileIndex], tolerance);
+            if (cacheMisses.Contains(fileIndex))
+                Report();
         });
 
         var cacheWriteFailed = false;
-        foreach (var index in misses)
+        foreach (var index in cacheMisses)
         {
             var parsed = parsedFiles[index]!;
             if (parsed.ReadFailed)
@@ -143,6 +157,28 @@ internal sealed class CachedBorderGeometryLoader(
             );
         }
 
+        var indexStopwatch = Stopwatch.StartNew();
+        var indexRegionCount = 0;
+        var indexLineCount = 0;
+        foreach (var index in indexMisses)
+        {
+            var parsed = parsedFiles[index]!;
+            if (parsed.ReadFailed)
+                continue;
+
+            await indexBuilder.WriteAsync(
+                RegionOf(files[index]),
+                keys[index],
+                parsed.Features,
+                cancellationToken
+            );
+
+            var (regions, lines) = CountIndexRows(parsed.Features);
+            indexRegionCount += regions;
+            indexLineCount += lines;
+        }
+        indexStopwatch.Stop();
+
         var polylines = new List<GeoPolyline>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var featureCount = 0;
@@ -173,7 +209,7 @@ internal sealed class CachedBorderGeometryLoader(
             }
         }
 
-        var geometry = new BorderGeometry(
+        var geometry = BorderGeometry.FromGeo(
             polylines,
             GeoBounds.FromPolylines(polylines, GeoBounds.World)
         );
@@ -185,17 +221,23 @@ internal sealed class CachedBorderGeometryLoader(
         var fingerprint = BorderCacheKeys.Fingerprint(keys);
 
         if (!cacheWriteFailed)
+        {
             await cache.DeleteExceptAsync(keys, cancellationToken);
+            await indexBuilder.DeleteExceptAsync(keys, cancellationToken);
+        }
 
         logger.LogInformation(
-            "Loaded {FileCount} border files from {Directory} ({CacheHits} cached, {ParsedFiles} parsed): {FeatureCount} features, {PolylineCount} polylines, {PointCount} points in {ElapsedMilliseconds} ms",
+            "Loaded {FileCount} border files from {Directory} ({CacheHits} cached, {ParsedFiles} parsed): {FeatureCount} features, {PolylineCount} polylines, {PointCount} points, {RegionCount} regions, {LineCount} lines (index {IndexMilliseconds} ms) in {ElapsedMilliseconds} ms",
             files.Length,
             directory,
             cacheHits,
-            misses.Count,
+            cacheMisses.Count,
             geometry.Polylines.Count == 0 ? 0 : featureCount,
             geometry.Polylines.Count,
             geometry.Polylines.Sum(polyline => polyline.Points.Count),
+            indexRegionCount,
+            indexLineCount,
+            indexStopwatch.ElapsedMilliseconds,
             stopwatch.ElapsedMilliseconds
         );
 
@@ -215,9 +257,19 @@ internal sealed class CachedBorderGeometryLoader(
             fingerprint,
             availableLevels,
             cacheHits,
-            misses.Count
+            cacheMisses.Count
         );
     }
+
+    private static (int Regions, int Lines) CountIndexRows(IReadOnlyList<ParsedFeature> features) =>
+        (
+            features
+                .Where(feature => feature.DedupeId is not null)
+                .Select(feature => feature.DedupeId!)
+                .Distinct()
+                .Count(),
+            features.Count(feature => feature.DedupeId is null)
+        );
 
     private static BorderLoadResult Empty() => new(BorderGeometry.Empty, string.Empty, [], 0, 0);
 

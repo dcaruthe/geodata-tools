@@ -8,6 +8,8 @@ internal sealed class TestSettings : ISettingsStore
 
     public GeodataSettings Geodata { get; set; } = new([2, 4], 0.002);
 
+    public WindowSize Window { get; set; } = WindowSize.Maximized;
+
     public long Version { get; private set; }
 
     private readonly Dictionary<FeatureFlag, bool> _flags = new()
@@ -60,6 +62,16 @@ internal sealed class TestSettings : ISettingsStore
     )
     {
         _flags[flag] = enabled;
+        Bump();
+        return Task.FromResult(SettingsResult.Ok);
+    }
+
+    public Task<SettingsResult> SetWindowSizeAsync(
+        WindowSize size,
+        CancellationToken cancellationToken = default
+    )
+    {
+        Window = size;
         Bump();
         return Task.FromResult(SettingsResult.Ok);
     }

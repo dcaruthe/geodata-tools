@@ -134,7 +134,13 @@ public sealed class LinkTests : IAsyncDisposable
             return Task.FromResult(
                 LinkResponse.Success(
                     settings.Id,
-                    new SettingsDto([2], [2, 4], 0.002, new Dictionary<string, bool>())
+                    new SettingsDto(
+                        [2],
+                        [2, 4],
+                        0.002,
+                        new Dictionary<string, bool>(),
+                        new WindowSizeDto(true, 0, 0)
+                    )
                 )
             );
         });

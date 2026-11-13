@@ -1,11 +1,12 @@
 # Map view
 
-The Map view draws the extracted administrative borders over a black background with a grid, a crosshair, and a key hint.
+The Map view draws the extracted administrative borders over a black background with a grid, a crosshair, a key hint, and a status line.
 
 ## Sub-features
 
 - `map-borders` renders the borders for the configured display levels after startup.
-- `map-chrome` draws the grid, the crosshair, and the `1: map   2: maintenance   Tab: view` hint.
+- `map-chrome` draws the grid, the crosshair, the `WASD/arrows pan   +/- zoom   F focus   Backspace back   1: map   2: maintenance   Tab: view` hint, and the `Center <lat>N <lon>E   Zoom <factor>x` status line.
+- `map-status` shows the camera status line at the top left and, while a region is focused, a focus status message above it.
 - `map-grid-flag` removes the grid when `Map grid` is off.
 - `map-crosshair-flag` removes the crosshair when `Crosshair` is off.
 - `map-switch` returns to the Map view from Maintenance with `1`.

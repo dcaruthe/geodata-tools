@@ -315,6 +315,8 @@ public sealed class MaintenanceControllerEdgeTests
             artifacts,
             progress,
             new BorderGeometryStore(),
+            new FakeRegionIndex(),
+            new FakeRegionIndexWriter(),
             bus,
             Microsoft.Extensions.Options.Options.Create(
                 new GeodataOptions { Regions = ["africa"] }

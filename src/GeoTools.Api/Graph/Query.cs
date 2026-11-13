@@ -72,10 +72,64 @@ public sealed class Query
             cancellationToken
         );
 
+    public Task<AdminRegionsResponse> GetAdminRegionsAsync(
+        int[]? levels,
+        BoundsInput? bounds,
+        string? parentId,
+        string? search,
+        int? limit,
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) =>
+        facade.GetAdminRegionsAsync(
+            levels,
+            GeodataQueryService.ParseBounds(
+                bounds?.MinLongitude,
+                bounds?.MinLatitude,
+                bounds?.MaxLongitude,
+                bounds?.MaxLatitude
+            ),
+            parentId,
+            search,
+            limit ?? 0,
+            cancellationToken
+        );
+
+    public Task<AdminRegionDto?> GetAdminRegionAsync(
+        string id,
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.GetAdminRegionAsync(id, cancellationToken);
+
+    public Task<RegionsAtResponse> GetRegionsAtAsync(
+        double longitude,
+        double latitude,
+        int[]? levels,
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.GetRegionsAtAsync(longitude, latitude, levels, cancellationToken);
+
+    public Task<RegionChildrenResponse> GetRegionChildrenAsync(
+        string id,
+        int childLevel,
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.GetRegionChildrenAsync(id, childLevel, cancellationToken);
+
+    public Task<RegionIndexResponse> GetRegionIndexAsync(
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.GetRegionIndexAsync(cancellationToken);
+
     public Task<ScreenshotInfoDto> GetScreenshotAsync(
         int? width,
         int? height,
         [Service] GeoToolsFacade facade,
         CancellationToken cancellationToken
     ) => facade.GetScreenshotInfoAsync(width, height, cancellationToken);
+
+    public Task<MapStateDto> GetMapStateAsync(
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.GetMapStateAsync(cancellationToken);
 }

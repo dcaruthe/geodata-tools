@@ -54,7 +54,7 @@ public sealed class MaintenanceViewTests
         var view = new MaintenanceView(controller);
         var before = settings.IsEnabled(FeatureFlag.MapCrosshair);
 
-        view.Handle(ViewKey.Enter);
+        view.Handle(ViewKey.Enter, new ViewSize(1200, 800));
 
         settings.IsEnabled(FeatureFlag.MapCrosshair).Should().Be(!before);
     }
@@ -81,6 +81,8 @@ public sealed class MaintenanceViewTests
             new FakeArtifactStore(),
             new ProgressStore(),
             new BorderGeometryStore(),
+            new FakeRegionIndex(),
+            new FakeRegionIndexWriter(),
             new FakeMessageBus(),
             Microsoft.Extensions.Options.Options.Create(
                 new GeodataOptions { Regions = ["africa"] }

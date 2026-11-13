@@ -138,11 +138,69 @@ public sealed class LauncherLinkClient(
             await SendAsync(new SetFeatureFlagRequest(NewId(), flag, enabled), cancellationToken)
         );
 
+    public async Task<CommandResultDto> SetWindowSizeAsync(
+        bool maximized,
+        int width,
+        int height,
+        CancellationToken cancellationToken = default
+    ) =>
+        Payload<CommandResultDto>(
+            await SendAsync(
+                new SetWindowSizeRequest(NewId(), maximized, width, height),
+                cancellationToken
+            )
+        );
+
     public async Task<CommandResultDto> ResetSettingsAsync(
         CancellationToken cancellationToken = default
     ) =>
         Payload<CommandResultDto>(
             await SendAsync(new ResetSettingsRequest(NewId()), cancellationToken)
+        );
+
+    public async Task<MapStateDto> GetMapStateAsync(
+        CancellationToken cancellationToken = default
+    ) => Payload<MapStateDto>(await SendAsync(new GetMapStateRequest(NewId()), cancellationToken));
+
+    public async Task<CommandResultDto> FocusPointAsync(
+        double longitude,
+        double latitude,
+        CancellationToken cancellationToken = default
+    ) =>
+        Payload<CommandResultDto>(
+            await SendAsync(new FocusPointRequest(NewId(), longitude, latitude), cancellationToken)
+        );
+
+    public async Task<CommandResultDto> FocusRegionAsync(
+        string regionId,
+        CancellationToken cancellationToken = default
+    ) =>
+        Payload<CommandResultDto>(
+            await SendAsync(new FocusRegionRequest(NewId(), regionId), cancellationToken)
+        );
+
+    public async Task<CommandResultDto> BlurFocusAsync(
+        CancellationToken cancellationToken = default
+    ) =>
+        Payload<CommandResultDto>(
+            await SendAsync(new BlurFocusRequest(NewId()), cancellationToken)
+        );
+
+    public async Task<CommandResultDto> PanAsync(
+        double dx,
+        double dy,
+        CancellationToken cancellationToken = default
+    ) =>
+        Payload<CommandResultDto>(
+            await SendAsync(new PanRequest(NewId(), dx, dy), cancellationToken)
+        );
+
+    public async Task<CommandResultDto> ZoomAsync(
+        int direction,
+        CancellationToken cancellationToken = default
+    ) =>
+        Payload<CommandResultDto>(
+            await SendAsync(new ZoomRequest(NewId(), direction), cancellationToken)
         );
 
     public async Task RotateIfDueAsync(CancellationToken cancellationToken = default)

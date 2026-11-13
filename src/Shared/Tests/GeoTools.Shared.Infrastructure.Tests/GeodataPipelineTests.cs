@@ -354,7 +354,7 @@ public sealed class GeodataPipelineTests
                     new BorderLoadResult(BorderGeometry.Empty, string.Empty, [], 0, 0)
                 );
 
-            var geometry = new BorderGeometry(
+            var geometry = BorderGeometry.FromGeo(
                 [
                     new GeoPolyline(
                         [

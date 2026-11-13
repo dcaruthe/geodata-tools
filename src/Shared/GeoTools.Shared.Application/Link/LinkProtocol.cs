@@ -53,6 +53,7 @@ public enum PipelineAction
     Repull,
     Extract,
     Cache,
+    Reindex,
     Cancel,
     Retry,
     Reset,

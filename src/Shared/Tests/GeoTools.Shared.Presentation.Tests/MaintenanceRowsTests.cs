@@ -1,5 +1,6 @@
 using FluentAssertions;
 using GeoTools.Shared.Application.State;
+using GeoTools.Shared.Domain.Geospatial;
 using GeoTools.Shared.Presentation.Views;
 
 namespace GeoTools.Shared.Presentation.Tests;
@@ -15,6 +16,8 @@ public sealed class MaintenanceRowsTests
         ids.Should()
             .Contain([
                 "status",
+                "section:window",
+                "windowSize",
                 "displayLevels",
                 "tolerance",
                 "extractLevels",
@@ -22,10 +25,13 @@ public sealed class MaintenanceRowsTests
                 "flag:MapCrosshair",
                 "flag:GeodataAutoPull",
                 "artifact:africa",
+                "section:index",
+                "regionIndex",
                 "action:check",
                 "action:repull",
                 "action:extract",
                 "action:cache",
+                "action:reindex",
                 "action:cancel",
                 "action:retry",
                 "action:reset",
@@ -40,6 +46,22 @@ public sealed class MaintenanceRowsTests
         rows.Single(row => row.Id == "action:repull").Enabled.Should().BeFalse();
         rows.Single(row => row.Id == "action:cancel").Enabled.Should().BeTrue();
         rows.Should().Contain(row => row.Id == "progress");
+    }
+
+    [Fact]
+    public void Build_includes_the_window_section_and_size()
+    {
+        var rows = MaintenanceRows.Build(Inputs());
+
+        rows.Should()
+            .Contain(row => row.Id == "section:window" && row.Kind == MaintenanceRowKind.Info);
+        rows.Should()
+            .Contain(row =>
+                row.Id == "windowSize"
+                && row.Label == "Window size"
+                && row.Value == "1600x900"
+                && row.Kind == MaintenanceRowKind.Choice
+            );
     }
 
     [Fact]
@@ -184,6 +206,43 @@ public sealed class MaintenanceRowsTests
         rows[moved].Should().Be(rows[MaintenanceRows.FirstSelectable(rows)]);
     }
 
+    [Fact]
+    public void Build_reports_the_region_index_stats()
+    {
+        var inputs = Inputs() with
+        {
+            Index = new RegionIndexStats(
+                5449,
+                113345,
+                [2, 4],
+                new GeoBounds(-180, -90, 180, 90),
+                12_345_678
+            ),
+        };
+
+        var rows = MaintenanceRows.Build(inputs);
+
+        rows.Single(row => row.Id == "regionIndex")
+            .Value.Should()
+            .Be("5449 regions, 113345 lines, levels 2,4, 11.8 MB");
+    }
+
+    [Fact]
+    public void Build_marks_the_region_index_unavailable_when_it_is_missing()
+    {
+        var rows = MaintenanceRows.Build(Inputs());
+
+        rows.Single(row => row.Id == "regionIndex").Value.Should().Be("unavailable");
+    }
+
+    [Fact]
+    public void Build_disables_reindex_while_running()
+    {
+        var rows = MaintenanceRows.Build(Inputs(running: true));
+
+        rows.Single(row => row.Id == "action:reindex").Enabled.Should().BeFalse();
+    }
+
     internal static MaintenanceInputs Inputs(bool running = false) =>
         new(
             running
@@ -197,6 +256,7 @@ public sealed class MaintenanceRowsTests
             null,
             new MapSettings([2]),
             new GeodataSettings([2, 4], 0.002),
+            new FixedWindow(1600, 900),
             new Dictionary<FeatureFlag, bool>
             {
                 [FeatureFlag.MapGrid] = true,

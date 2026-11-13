@@ -3,6 +3,7 @@ using GeoTools.Api.Contracts;
 using GeoTools.Api.Facade;
 using GeoTools.Shared.Application.Link;
 using GeoTools.Shared.Application.Views;
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -117,7 +118,7 @@ public sealed class GeoToolsTools(GeoToolsFacade facade)
 
     [McpServerTool(Name = "pipeline")]
     [Description(
-        "Runs a pipeline action: Check, Repull, Extract, Cache, Cancel, Retry, or Reset. Repull, Extract, and Reset need confirm=true."
+        "Runs a pipeline action: Check, Repull, Extract, Cache, Reindex, Cancel, Retry, or Reset. Repull, Extract, and Reset need confirm=true."
     )]
     public Task<CommandResultDto> PipelineAsync(
         [Description("The action to run.")] PipelineAction action,
@@ -139,7 +140,7 @@ public sealed class GeoToolsTools(GeoToolsFacade facade)
 
     [McpServerTool(Name = "regions", ReadOnly = true)]
     [Description(
-        "Configured regions with their artifact sizes, the extracted admin levels, and the border bounds and totals."
+        "Configured geodata download regions with their artifact sizes, the extracted admin levels, and the border bounds and totals. For administrative region queries use admin_regions."
     )]
     public Task<RegionsResponse> RegionsAsync(CancellationToken cancellationToken) =>
         facade.GetRegionsAsync(cancellationToken);
@@ -166,10 +167,89 @@ public sealed class GeoToolsTools(GeoToolsFacade facade)
             cancellationToken
         );
 
+    [McpServerTool(Name = "admin_regions", ReadOnly = true)]
+    [Description(
+        "Lists administrative regions from the region index by admin level, bounds, parent id, and a case-insensitive name or id substring. Distinct from regions, which reports geodata download regions."
+    )]
+    public Task<AdminRegionsResponse> AdminRegionsAsync(
+        [Description("Admin levels to include, for example [2,4].")] int[]? levels = null,
+        [Description("Western longitude of the box.")] double? minLon = null,
+        [Description("Southern latitude of the box.")] double? minLat = null,
+        [Description("Eastern longitude of the box.")] double? maxLon = null,
+        [Description("Northern latitude of the box.")] double? maxLat = null,
+        [Description("Parent region id, for example region:51477.")] string? parentId = null,
+        [Description("Case-insensitive name or id substring.")] string? search = null,
+        [Description("Maximum regions to return, 1 to 5000.")] int? limit = null,
+        CancellationToken cancellationToken = default
+    ) =>
+        facade.GetAdminRegionsAsync(
+            levels,
+            GeodataQueryService.ParseBounds(minLon, minLat, maxLon, maxLat),
+            parentId,
+            search,
+            limit ?? 0,
+            cancellationToken
+        );
+
+    [McpServerTool(Name = "admin_region", ReadOnly = true)]
+    [Description("One administrative region by id, for example region:51477.")]
+    public Task<AdminRegionDto?> AdminRegionAsync(
+        [Description("Region id, for example region:51477.")] string id,
+        CancellationToken cancellationToken = default
+    ) => facade.GetAdminRegionAsync(id, cancellationToken);
+
+    [McpServerTool(Name = "regions_at", ReadOnly = true)]
+    [Description(
+        "The administrative regions whose bounds and rings contain a point, ranked so the deepest, smallest region comes first."
+    )]
+    public Task<RegionsAtResponse> RegionsAtAsync(
+        [Description("Longitude, for example 10.45.")] double longitude,
+        [Description("Latitude, for example 51.16.")] double latitude,
+        [Description("Admin levels to include, for example [2,4].")] int[]? levels = null,
+        CancellationToken cancellationToken = default
+    ) => facade.GetRegionsAtAsync(longitude, latitude, levels, cancellationToken);
+
+    [McpServerTool(Name = "region_children", ReadOnly = true)]
+    [Description(
+        "The children of an administrative region at an admin level, computed read-only from the region index."
+    )]
+    public Task<RegionChildrenResponse> RegionChildrenAsync(
+        [Description("Parent region id, for example region:51477.")] string regionId,
+        [Description("Child admin level, for example 4.")] int childLevel,
+        CancellationToken cancellationToken = default
+    ) => facade.GetRegionChildrenAsync(regionId, childLevel, cancellationToken);
+
+    [McpServerTool(Name = "region_index", ReadOnly = true)]
+    [Description("The region index counts, levels, bounds, and database size.")]
+    public Task<RegionIndexResponse> RegionIndexAsync(
+        CancellationToken cancellationToken = default
+    ) => facade.GetRegionIndexAsync(cancellationToken);
+
     [McpServerTool(Name = "settings", ReadOnly = true)]
-    [Description("Current display levels, extract levels, simplify tolerance, and feature flags.")]
+    [Description(
+        "Current display levels, extract levels, simplify tolerance, window size, and feature flags."
+    )]
     public Task<SettingsViewDto> SettingsAsync(CancellationToken cancellationToken) =>
         facade.GetSettingsAsync(cancellationToken);
+
+    [McpServerTool(Name = "set_window", Idempotent = true)]
+    [Description(
+        "Maximizes the window, or sets a fixed size between 640x480 and 7680x4320. Dimensions are ignored when maximized."
+    )]
+    public Task<CommandResultDto> SetWindowAsync(
+        [Description("Maximize the window instead of using width and height.")] bool maximized,
+        [Description("Width in pixels when the window is not maximized.")] int width = 0,
+        [Description("Height in pixels when the window is not maximized.")] int height = 0,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (!maximized && (width <= 0 || height <= 0))
+            throw new McpException(
+                "Width and height must be positive when the window is not maximized."
+            );
+
+        return facade.SetWindowSizeAsync(maximized, width, height, cancellationToken);
+    }
 
     [McpServerTool(Name = "update_settings")]
     [Description(
@@ -206,4 +286,46 @@ public sealed class GeoToolsTools(GeoToolsFacade facade)
 
         return result;
     }
+
+    [McpServerTool(Name = "map_state", ReadOnly = true)]
+    [Description(
+        "The map camera center, zoom, viewport bounds, focus stack, visible levels, and window size."
+    )]
+    public Task<MapStateDto> MapStateAsync(CancellationToken cancellationToken) =>
+        facade.GetMapStateAsync(cancellationToken);
+
+    [McpServerTool(Name = "focus_at", Idempotent = true)]
+    [Description("Focuses the administrative region under the given longitude and latitude.")]
+    public Task<CommandResultDto> FocusAtAsync(
+        [Description("Longitude, for example 10.45.")] double longitude,
+        [Description("Latitude, for example 51.16.")] double latitude,
+        CancellationToken cancellationToken = default
+    ) => facade.FocusPointAsync(longitude, latitude, cancellationToken);
+
+    [McpServerTool(Name = "focus_region", Idempotent = true)]
+    [Description("Focuses a region by id, for example region:51477.")]
+    public Task<CommandResultDto> FocusRegionAsync(
+        [Description("Region id, for example region:51477.")] string regionId,
+        CancellationToken cancellationToken = default
+    ) => facade.FocusRegionAsync(regionId, cancellationToken);
+
+    [McpServerTool(Name = "blur_focus", Idempotent = true)]
+    [Description("Pops the focus stack, returning to the parent region or the world.")]
+    public Task<CommandResultDto> BlurFocusAsync(CancellationToken cancellationToken = default) =>
+        facade.BlurFocusAsync(cancellationToken);
+
+    [McpServerTool(Name = "pan", Idempotent = true)]
+    [Description("Pans the map camera by a screen-space distance in pixels.")]
+    public Task<CommandResultDto> PanAsync(
+        [Description("Horizontal distance in screen pixels, for example 64.")] double dx,
+        [Description("Vertical distance in screen pixels, for example 0.")] double dy,
+        CancellationToken cancellationToken = default
+    ) => facade.PanAsync(dx, dy, cancellationToken);
+
+    [McpServerTool(Name = "zoom", Idempotent = true)]
+    [Description("Zooms the map camera: 1 zooms in and -1 zooms out.")]
+    public Task<CommandResultDto> ZoomAsync(
+        [Description("1 to zoom in, -1 to zoom out.")] int direction,
+        CancellationToken cancellationToken = default
+    ) => facade.ZoomAsync(direction, cancellationToken);
 }

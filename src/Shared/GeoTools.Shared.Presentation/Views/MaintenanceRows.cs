@@ -41,10 +41,12 @@ internal sealed record MaintenanceInputs(
     RunRecord? LatestRun,
     MapSettings Map,
     GeodataSettings Geodata,
+    WindowSize Window,
     IReadOnlyDictionary<FeatureFlag, bool> Flags,
     IReadOnlyList<int> AvailableLevels,
     IReadOnlyList<MaintenanceArtifactSummary> Artifacts,
-    bool IsRunning
+    bool IsRunning,
+    RegionIndexStats? Index = null
 );
 
 internal static class MaintenanceRows
@@ -109,6 +111,11 @@ internal static class MaintenanceRows
             )
         );
 
+        rows.Add(new("section:window", "Window", "", MaintenanceRowKind.Info, false));
+        rows.Add(
+            new("windowSize", "Window size", inputs.Window.Display, MaintenanceRowKind.Choice)
+        );
+
         rows.Add(new("section:extract", "Extraction", "", MaintenanceRowKind.Info, false));
         rows.Add(
             new(
@@ -158,6 +165,19 @@ internal static class MaintenanceRows
             );
         }
 
+        rows.Add(new("section:index", "Region index", "", MaintenanceRowKind.Info, false));
+        rows.Add(
+            new(
+                "regionIndex",
+                "Regions",
+                inputs.Index is { } stats
+                    ? $"{stats.RegionCount} regions, {stats.LineCount} lines, levels {FormatLevels(stats.Levels)}, {ProgressAggregator.FormatBytes(stats.DatabaseBytes)}"
+                    : "unavailable",
+                MaintenanceRowKind.Info,
+                Selectable: false
+            )
+        );
+
         rows.Add(new("section:actions", "Actions", "", MaintenanceRowKind.Info, false));
         rows.Add(
             new(
@@ -192,6 +212,15 @@ internal static class MaintenanceRows
             new(
                 "action:cache",
                 "Rebuild geometry cache",
+                "",
+                MaintenanceRowKind.Action,
+                Enabled: !inputs.IsRunning
+            )
+        );
+        rows.Add(
+            new(
+                "action:reindex",
+                "Rebuild region index",
                 "",
                 MaintenanceRowKind.Action,
                 Enabled: !inputs.IsRunning

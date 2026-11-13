@@ -26,6 +26,7 @@ internal sealed class SettingsStore : ISettingsStore
         IOptions<MapOptions> map,
         IOptions<GeodataOptions> geodata,
         IOptions<FeaturesOptions> features,
+        IOptions<WindowOptions> window,
         IMessageBus bus,
         TimeProvider clock,
         ILogger<SettingsStore> logger
@@ -48,6 +49,7 @@ internal sealed class SettingsStore : ISettingsStore
                 [FeatureFlag.MapCrosshair] = features.Value.MapCrosshair,
                 [FeatureFlag.GeodataAutoPull] = features.Value.GeodataAutoPull,
             },
+            WindowSize.FromOptions(window.Value.Width, window.Value.Height, window.Value.Maximized),
             0
         );
         _current = _defaults;
@@ -56,6 +58,8 @@ internal sealed class SettingsStore : ISettingsStore
     public MapSettings Map => Current.Map;
 
     public GeodataSettings Geodata => Current.Geodata;
+
+    public WindowSize Window => Current.Window;
 
     public long Version => Current.Version;
 
@@ -78,6 +82,7 @@ internal sealed class SettingsStore : ISettingsStore
             ?? _defaults.Geodata.ExtractAdminLevels;
         var tolerance = ReadDouble(settings, SettingKeys.SimplifyTolerance)
             ?? _defaults.Geodata.SimplifyToleranceDegrees;
+        var window = ReadWindowSize(settings) ?? _defaults.Window;
 
         var flagValues = new Dictionary<FeatureFlag, bool>(_defaults.Flags);
         foreach (var flag in flags)
@@ -90,6 +95,7 @@ internal sealed class SettingsStore : ISettingsStore
             new MapSettings(mapLevels),
             new GeodataSettings(extractLevels, tolerance),
             flagValues,
+            window,
             Current.Version + 1
         );
         Volatile.Write(ref _current, next);
@@ -190,6 +196,27 @@ internal sealed class SettingsStore : ISettingsStore
                 tolerance.ToString("R", CultureInfo.InvariantCulture),
                 _clock.GetUtcNow()
             ),
+            cancellationToken
+        );
+        return SettingsResult.Ok;
+    }
+
+    public async Task<SettingsResult> SetWindowSizeAsync(
+        WindowSize size,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var validation = SettingsValidation.ValidateWindowSize(size);
+        if (!validation.Accepted)
+            return validation;
+
+        var saved = await PersistAsync(SettingKeys.WindowSize, size.Display, cancellationToken);
+        if (!saved.Accepted)
+            return saved;
+
+        Update(current => current with { Window = size });
+        await PublishAsync(
+            new SettingsChanged(SettingKeys.WindowSize, size.Display, _clock.GetUtcNow()),
             cancellationToken
         );
         return SettingsResult.Ok;
@@ -346,6 +373,19 @@ internal sealed class SettingsStore : ISettingsStore
             : null;
     }
 
+    private WindowSize? ReadWindowSize(IReadOnlyList<SettingRow> settings)
+    {
+        var value = settings.FirstOrDefault(row => row.Key == SettingKeys.WindowSize)?.Value;
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        if (WindowSize.TryParse(value, out var parsed))
+            return parsed;
+
+        _logger.LogWarning("Ignoring invalid {Key} setting.", SettingKeys.WindowSize);
+        return null;
+    }
+
     private static int[] Normalize(IReadOnlyList<int> levels) =>
         levels.Where(level => level > 0).Distinct().Order().ToArray();
 
@@ -353,6 +393,7 @@ internal sealed class SettingsStore : ISettingsStore
         MapSettings Map,
         GeodataSettings Geodata,
         IReadOnlyDictionary<FeatureFlag, bool> Flags,
+        WindowSize Window,
         long Version
     );
 }
@@ -362,4 +403,5 @@ internal static class SettingKeys
     public const string DisplayAdminLevels = "map.adminLevels";
     public const string ExtractAdminLevels = "geodata.extractAdminLevels";
     public const string SimplifyTolerance = "geodata.simplifyTolerance";
+    public const string WindowSize = "window.size";
 }

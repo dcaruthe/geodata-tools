@@ -1,7 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
+using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.Rendering;
+using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Presentation.Controls;
-using GeoTools.Shared.Presentation.Options;
 using GeoTools.Shared.Presentation.Views;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ internal sealed class RenderingWorker(
     ISceneSource source,
     SceneWindow window,
     IOptions<WindowOptions> options,
+    ISettingsStore settings,
     IHostApplicationLifetime lifetime,
     ILogger<RenderingWorker> logger
 ) : IHostedService
@@ -24,10 +26,9 @@ internal sealed class RenderingWorker(
     {
         window.SetSceneSource(renderer, source);
         logger.LogInformation(
-            "Window \"{Title}\" {Width}x{Height}. Close the window or press Ctrl+C to exit.",
+            "Window \"{Title}\" {Size}. Close the window or press Ctrl+C to exit.",
             options.Value.Title,
-            options.Value.Width,
-            options.Value.Height
+            settings.Window.Display
         );
         logger.LogInformation("Keys: 1 map, 2 maintenance, Tab next, Esc close.");
         logger.LogInformation(

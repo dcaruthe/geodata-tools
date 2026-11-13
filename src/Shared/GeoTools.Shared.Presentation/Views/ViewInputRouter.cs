@@ -8,20 +8,23 @@ internal enum ViewKey
     Down,
     Left,
     Right,
+    ZoomIn,
+    ZoomOut,
     Enter,
     Backspace,
     Home,
     End,
+    Focus,
 }
 
 internal interface IViewInputTarget : IView
 {
-    bool Handle(ViewKey key);
+    bool Handle(ViewKey key, ViewSize size);
 }
 
 internal interface IViewInputRouter
 {
-    bool Handle(ViewKey key);
+    bool Handle(ViewKey key, ViewSize size);
 }
 
 internal sealed class ViewInputRouter : IViewInputRouter
@@ -35,6 +38,6 @@ internal sealed class ViewInputRouter : IViewInputRouter
         _targets = views.OfType<IViewInputTarget>().ToDictionary(view => view.Id);
     }
 
-    public bool Handle(ViewKey key) =>
-        _targets.TryGetValue(_mediator.ActiveView, out var target) && target.Handle(key);
+    public bool Handle(ViewKey key, ViewSize size) =>
+        _targets.TryGetValue(_mediator.ActiveView, out var target) && target.Handle(key, size);
 }

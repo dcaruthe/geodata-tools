@@ -95,3 +95,46 @@ internal sealed class HandledRequestRow
     public string RequestId { get; set; } = string.Empty;
     public long HandledAt { get; set; }
 }
+
+internal sealed class RegionRow
+{
+    public string Id { get; set; } = string.Empty;
+    public string SourceKey { get; set; } = string.Empty;
+    public string Region { get; set; } = string.Empty;
+    public string OsmId { get; set; } = string.Empty;
+    public string? Name { get; set; }
+    public string? BorderType { get; set; }
+    public int AdminLevel { get; set; }
+    public string? ParentId { get; set; }
+    public bool ParentResolved { get; set; }
+    public double MinLongitude { get; set; }
+    public double MinLatitude { get; set; }
+    public double MaxLongitude { get; set; }
+    public double MaxLatitude { get; set; }
+    public double Area { get; set; }
+    public int PointCount { get; set; }
+    public byte[] Blob { get; set; } = [];
+    public long CreatedAt { get; set; }
+}
+
+internal sealed class BorderLineRow
+{
+    public string Id { get; set; } = string.Empty;
+    public string SourceKey { get; set; } = string.Empty;
+    public string Region { get; set; } = string.Empty;
+    public int AdminLevel { get; set; }
+    public double MinLongitude { get; set; }
+    public double MinLatitude { get; set; }
+    public double MaxLongitude { get; set; }
+    public double MaxLatitude { get; set; }
+    public int PointCount { get; set; }
+    public byte[] Blob { get; set; } = [];
+    public long CreatedAt { get; set; }
+}
+
+internal sealed class RegionResolutionRow
+{
+    public string RegionId { get; set; } = string.Empty;
+    public int ChildLevel { get; set; }
+    public long ResolvedAt { get; set; }
+}

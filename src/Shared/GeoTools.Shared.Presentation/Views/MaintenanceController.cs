@@ -22,6 +22,8 @@ internal sealed class MaintenanceController(
     IArtifactStore artifacts,
     IProgressStore progress,
     IBorderGeometryStore geometry,
+    IRegionIndex regionIndex,
+    IRegionIndexWriter indexWriter,
     IMessageBus bus,
     IOptions<GeodataOptions> options,
     INavigationMediator mediator,
@@ -167,8 +169,22 @@ internal sealed class MaintenanceController(
         await _refreshGate.WaitAsync(cancellationToken);
         try
         {
+            RegionIndexStats? stats = null;
+            try
+            {
+                stats = await regionIndex.GetStatsAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Could not read the region index stats.");
+            }
+
             var records = await artifacts.ListAsync(cancellationToken: cancellationToken);
-            var inputs = BuildInputs(records);
+            var inputs = BuildInputs(records, stats);
             var rows = MaintenanceRows.Build(inputs);
             var current = Snapshot;
             var selectedId = current.Selected?.Id;
@@ -231,7 +247,10 @@ internal sealed class MaintenanceController(
         }
     }
 
-    private MaintenanceInputs BuildInputs(IReadOnlyList<ArtifactRecord> records)
+    private MaintenanceInputs BuildInputs(
+        IReadOnlyList<ArtifactRecord> records,
+        RegionIndexStats? stats
+    )
     {
         var flags = new Dictionary<FeatureFlag, bool>
         {
@@ -265,10 +284,12 @@ internal sealed class MaintenanceController(
             jobs.LatestRun,
             settings.Map,
             settings.Geodata,
+            settings.Window,
             flags,
             geometry.AvailableAdminLevels,
             summaries,
-            progress.Current.Phase == BootstrapPhase.Running
+            progress.Current.Phase == BootstrapPhase.Running,
+            stats
         );
     }
 
@@ -355,6 +376,10 @@ internal sealed class MaintenanceController(
                     return result;
                 });
                 break;
+            case "windowSize":
+                var window = WindowSizePresets.Next(settings.Window, direction);
+                Apply(() => settings.SetWindowSizeAsync(window));
+                break;
             default:
                 if (row.Id.StartsWith("flag:", StringComparison.Ordinal))
                     ToggleFlag(row.Id["flag:".Length..]);
@@ -423,6 +448,9 @@ internal sealed class MaintenanceController(
                     "Geometry cache rebuild"
                 );
                 break;
+            case "action:reindex":
+                _ = ReindexAsync();
+                break;
             case "action:cancel":
                 _ = PublishCancelAsync();
                 break;
@@ -481,6 +509,26 @@ internal sealed class MaintenanceController(
         {
             logger.LogWarning(exception, "Could not queue {Label}.", label);
             SetStatus($"Could not queue: {exception.Message}");
+        }
+    }
+
+    // Rebuilds the region index from the warm geometry cache. Clearing first forces the loader to
+    // backfill every region and line on the next Load step, which the RegionIndex scope plans.
+    private async Task ReindexAsync()
+    {
+        try
+        {
+            await indexWriter.ClearAsync(CancellationToken.None);
+            await PublishRebuildAsync(
+                RebuildScope.RegionIndex,
+                force: false,
+                "Region index rebuild"
+            );
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Could not clear the region index.");
+            SetStatus($"Could not clear: {exception.Message}");
         }
     }
 

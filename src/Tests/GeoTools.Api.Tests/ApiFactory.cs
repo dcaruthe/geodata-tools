@@ -1,3 +1,5 @@
+using GeoTools.Shared.Domain.Geospatial;
+using GeoTools.Shared.Infrastructure.Geospatial;
 using GeoTools.Shared.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -112,6 +114,84 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
                 Fraction = 1,
             }
         );
+        context.Regions.Add(Region("region:de", "Deutschland", 2, 0, 0, 10, 10));
+        context.Regions.Add(Region("region:de-bayern", "Bayern", 4, 2, 2, 4, 4));
+        context.BorderLines.Add(Line("region:line:0", 4, 0, 0, 1, 1));
         context.SaveChanges();
+    }
+
+    private static RegionRow Region(
+        string id,
+        string name,
+        int level,
+        double minLon,
+        double minLat,
+        double maxLon,
+        double maxLat
+    )
+    {
+        var ring = new GeoPolyline(
+            [
+                new GeoPoint(minLon, minLat),
+                new GeoPoint(maxLon, minLat),
+                new GeoPoint(maxLon, maxLat),
+                new GeoPoint(minLon, maxLat),
+                new GeoPoint(minLon, minLat),
+            ],
+            Closed: true,
+            AdminLevel: level
+        );
+        var bounds = new GeoBounds(minLon, minLat, maxLon, maxLat);
+        return new RegionRow
+        {
+            Id = id,
+            SourceKey = "fixture",
+            Region = "africa",
+            OsmId = id["region:".Length..],
+            Name = name,
+            BorderType = "nation",
+            AdminLevel = level,
+            ParentId = null,
+            ParentResolved = false,
+            MinLongitude = minLon,
+            MinLatitude = minLat,
+            MaxLongitude = maxLon,
+            MaxLatitude = maxLat,
+            Area = (maxLon - minLon) * (maxLat - minLat),
+            PointCount = 5,
+            Blob = GeometryBlobCodec.Encode([new GeometryFeature(null, [ring])], bounds),
+            CreatedAt = 0,
+        };
+    }
+
+    private static BorderLineRow Line(
+        string id,
+        int level,
+        double minLon,
+        double minLat,
+        double maxLon,
+        double maxLat
+    )
+    {
+        var polyline = new GeoPolyline(
+            [new GeoPoint(minLon, minLat), new GeoPoint(maxLon, maxLat)],
+            Closed: false,
+            AdminLevel: level
+        );
+        var bounds = new GeoBounds(minLon, minLat, maxLon, maxLat);
+        return new BorderLineRow
+        {
+            Id = id,
+            SourceKey = "fixture",
+            Region = "africa",
+            AdminLevel = level,
+            MinLongitude = minLon,
+            MinLatitude = minLat,
+            MaxLongitude = maxLon,
+            MaxLatitude = maxLat,
+            PointCount = 2,
+            Blob = GeometryBlobCodec.Encode([new GeometryFeature(null, [polyline])], bounds),
+            CreatedAt = 0,
+        };
     }
 }

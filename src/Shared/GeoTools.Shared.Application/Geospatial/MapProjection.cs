@@ -17,4 +17,15 @@ public static class MapProjection
 
         return (x, y);
     }
+
+    public static GeoPoint Unproject(double x, double y)
+    {
+        var worldX = Math.Clamp(x, 0, 1);
+        var worldY = Math.Clamp(y, 0, 1);
+
+        var longitude = worldX * 360 - 180;
+        var latitudeRadians = 2 * Math.Atan(Math.Exp(Math.PI * (1 - 2 * worldY))) - Math.PI / 2;
+
+        return new GeoPoint(longitude, latitudeRadians * 180 / Math.PI);
+    }
 }

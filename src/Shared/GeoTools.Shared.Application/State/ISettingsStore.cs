@@ -6,6 +6,8 @@ public interface ISettingsStore
 
     GeodataSettings Geodata { get; }
 
+    WindowSize Window { get; }
+
     long Version { get; }
 
     bool IsEnabled(FeatureFlag flag);
@@ -24,6 +26,11 @@ public interface ISettingsStore
 
     Task<SettingsResult> SetSimplifyToleranceAsync(
         double tolerance,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<SettingsResult> SetWindowSizeAsync(
+        WindowSize size,
         CancellationToken cancellationToken = default
     );
 

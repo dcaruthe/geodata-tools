@@ -2,17 +2,18 @@ using GeoTools.Shared.Application.Abstractions.Graphics;
 using GeoTools.Shared.Application.Messaging;
 using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.Rendering;
+using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Infrastructure;
 using GeoTools.Shared.Infrastructure.Rendering;
 using GeoTools.Shared.Infrastructure.Rendering.OpenGl;
 using GeoTools.Shared.Presentation.Controls;
 using GeoTools.Shared.Presentation.Link;
-using GeoTools.Shared.Presentation.Options;
 using GeoTools.Shared.Presentation.Views;
 using GeoTools.Shared.Presentation.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace GeoTools.Shared.Presentation;
@@ -59,11 +60,17 @@ public static class ConfigureServices
         services.AddSingleton(provider =>
         {
             var options = provider.GetRequiredService<IOptions<WindowOptions>>().Value;
+            var settings = provider.GetRequiredService<ISettingsStore>();
             return SceneWindow.Create(
                 options,
+                settings.Window,
+                settings,
+                provider.GetRequiredService<IWindowStateStore>(),
+                provider.GetRequiredService<TimeProvider>(),
                 provider.GetRequiredService<INavigationMediator>(),
                 provider.GetRequiredService<IViewInputRouter>(),
-                provider.GetRequiredService<WindowCommandPump>()
+                provider.GetRequiredService<WindowCommandPump>(),
+                provider.GetRequiredService<ILogger<SceneWindow>>()
             );
         });
         services.AddSingleton<IOpenGlContext>(provider =>
@@ -81,6 +88,8 @@ public static class ConfigureServices
         services.AddSingleton<IView>(provider => provider.GetRequiredService<MaintenanceView>());
         services.AddSingleton<IViewInputRouter, ViewInputRouter>();
         services.AddSingleton<ISceneRenderer, DefaultSceneRenderer>();
+        services.AddSingleton<MapController>();
+        services.AddSingleton<MapFocusService>();
         services.AddSingleton<MaintenanceController>();
         services.AddSingleton<IMessageSubscription>(provider =>
             provider.GetRequiredService<MaintenanceController>()
@@ -90,6 +99,7 @@ public static class ConfigureServices
         services.AddSingleton<ISceneSource, ActiveViewSceneSource>();
         services.AddSingleton<WindowCommandInbox>();
         services.AddSingleton<WindowCommandPump>();
+        services.AddSingleton<IWindowStateStore, WindowStateStore>();
         services.AddHostedService<LauncherLinkService>();
         services.AddHostedService<RenderingWorker>();
 

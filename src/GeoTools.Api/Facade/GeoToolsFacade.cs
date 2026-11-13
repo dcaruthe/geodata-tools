@@ -18,6 +18,7 @@ public sealed class GeoToolsFacade(
     IJobStore jobs,
     IArtifactStore artifacts,
     GeodataQueryService geodata,
+    IRegionIndex index,
     IOptions<GeodataOptions> geodataOptions,
     TimeProvider clock,
     ILogger<GeoToolsFacade> logger
@@ -128,6 +129,13 @@ public sealed class GeoToolsFacade(
         CancellationToken cancellationToken
     ) => link.SetToleranceAsync(tolerance, cancellationToken);
 
+    public Task<CommandResultDto> SetWindowSizeAsync(
+        bool maximized,
+        int width,
+        int height,
+        CancellationToken cancellationToken
+    ) => link.SetWindowSizeAsync(maximized, width, height, cancellationToken);
+
     public Task<CommandResultDto> SetFeatureFlagAsync(
         string flag,
         bool enabled,
@@ -136,6 +144,32 @@ public sealed class GeoToolsFacade(
 
     public Task<CommandResultDto> ResetSettingsAsync(CancellationToken cancellationToken) =>
         link.ResetSettingsAsync(cancellationToken);
+
+    public Task<MapStateDto> GetMapStateAsync(CancellationToken cancellationToken) =>
+        link.GetMapStateAsync(cancellationToken);
+
+    public Task<CommandResultDto> FocusPointAsync(
+        double longitude,
+        double latitude,
+        CancellationToken cancellationToken
+    ) => link.FocusPointAsync(longitude, latitude, cancellationToken);
+
+    public Task<CommandResultDto> FocusRegionAsync(
+        string regionId,
+        CancellationToken cancellationToken
+    ) => link.FocusRegionAsync(regionId, cancellationToken);
+
+    public Task<CommandResultDto> BlurFocusAsync(CancellationToken cancellationToken) =>
+        link.BlurFocusAsync(cancellationToken);
+
+    public Task<CommandResultDto> PanAsync(
+        double dx,
+        double dy,
+        CancellationToken cancellationToken
+    ) => link.PanAsync(dx, dy, cancellationToken);
+
+    public Task<CommandResultDto> ZoomAsync(int direction, CancellationToken cancellationToken) =>
+        link.ZoomAsync(direction, cancellationToken);
 
     public async Task<SettingsViewDto> GetSettingsAsync(CancellationToken cancellationToken)
     {
@@ -146,7 +180,8 @@ public sealed class GeoToolsFacade(
                 live.DisplayLevels,
                 live.ExtractLevels,
                 live.Tolerance,
-                live.Flags.Select(flag => new FlagDto(flag.Key, flag.Value)).ToArray()
+                live.Flags.Select(flag => new FlagDto(flag.Key, flag.Value)).ToArray(),
+                live.Window
             );
         }
         catch (LinkUnavailableException)
@@ -173,8 +208,14 @@ public sealed class GeoToolsFacade(
                     nameof(FeatureFlag.GeodataAutoPull),
                     settings.IsEnabled(FeatureFlag.GeodataAutoPull)
                 ),
-            }
+            },
+            ToDto(settings.Window)
         );
+
+    private static WindowSizeDto ToDto(WindowSize size) =>
+        size is FixedWindow fixedWindow
+            ? new WindowSizeDto(false, fixedWindow.Width, fixedWindow.Height)
+            : new WindowSizeDto(true, 0, 0);
 
     public async Task<RunDetailDto?> GetLatestRunAsync(CancellationToken cancellationToken)
     {
@@ -269,6 +310,87 @@ public sealed class GeoToolsFacade(
         string format,
         CancellationToken cancellationToken
     ) => geodata.QueryAsync(bounds, adminLevels, limit, format, cancellationToken);
+
+    public async Task<AdminRegionsResponse> GetAdminRegionsAsync(
+        int[]? levels,
+        GeoBounds? bounds,
+        string? parentId,
+        string? search,
+        int limit,
+        CancellationToken cancellationToken
+    )
+    {
+        var regions = await index.ListRegionsAsync(
+            levels,
+            bounds,
+            parentId,
+            search,
+            limit,
+            cancellationToken
+        );
+        return new AdminRegionsResponse(regions.Select(ToDto).ToArray());
+    }
+
+    public async Task<AdminRegionDto?> GetAdminRegionAsync(
+        string id,
+        CancellationToken cancellationToken
+    )
+    {
+        var detail = await index.GetRegionAsync(id, cancellationToken);
+        return detail is null ? null : ToDto(detail.Summary);
+    }
+
+    public async Task<RegionsAtResponse> GetRegionsAtAsync(
+        double longitude,
+        double latitude,
+        int[]? levels,
+        CancellationToken cancellationToken
+    )
+    {
+        var selected = levels is { Length: > 0 }
+            ? levels
+            : settings.Geodata.ExtractAdminLevels.ToArray();
+        var regions = await index.FindContainingAsync(
+            new GeoPoint(longitude, latitude),
+            selected,
+            cancellationToken
+        );
+        return new RegionsAtResponse(longitude, latitude, regions.Select(ToDto).ToArray());
+    }
+
+    public async Task<RegionChildrenResponse> GetRegionChildrenAsync(
+        string id,
+        int childLevel,
+        CancellationToken cancellationToken
+    )
+    {
+        var regions = await index.FindChildrenAsync(id, childLevel, cancellationToken);
+        return new RegionChildrenResponse(id, childLevel, regions.Select(ToDto).ToArray());
+    }
+
+    public async Task<RegionIndexResponse> GetRegionIndexAsync(CancellationToken cancellationToken)
+    {
+        var stats = await index.GetStatsAsync(cancellationToken);
+        return new RegionIndexResponse(
+            stats.RegionCount,
+            stats.LineCount,
+            stats.Levels,
+            stats.Bounds,
+            stats.DatabaseBytes
+        );
+    }
+
+    private static AdminRegionDto ToDto(RegionSummary summary) =>
+        new(
+            summary.Id,
+            summary.Name,
+            summary.BorderType,
+            summary.AdminLevel,
+            summary.Bounds,
+            summary.ParentId,
+            summary.Area,
+            summary.PointCount
+        );
 
     private async Task<LocalStateDto> BuildLocalAsync(CancellationToken cancellationToken)
     {

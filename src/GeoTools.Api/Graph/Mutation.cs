@@ -61,6 +61,14 @@ public sealed class Mutation
         CancellationToken cancellationToken
     ) => facade.SetToleranceAsync(tolerance, cancellationToken);
 
+    public Task<CommandResultDto> SetWindowSizeAsync(
+        bool maximized,
+        int width,
+        int height,
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.SetWindowSizeAsync(maximized, width, height, cancellationToken);
+
     public Task<CommandResultDto> SetFeatureFlagAsync(
         string flag,
         bool enabled,
@@ -72,4 +80,35 @@ public sealed class Mutation
         [Service] GeoToolsFacade facade,
         CancellationToken cancellationToken
     ) => facade.ResetSettingsAsync(cancellationToken);
+
+    public Task<CommandResultDto> FocusAtAsync(
+        double longitude,
+        double latitude,
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.FocusPointAsync(longitude, latitude, cancellationToken);
+
+    public Task<CommandResultDto> FocusRegionAsync(
+        string regionId,
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.FocusRegionAsync(regionId, cancellationToken);
+
+    public Task<CommandResultDto> BlurFocusAsync(
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.BlurFocusAsync(cancellationToken);
+
+    public Task<CommandResultDto> PanAsync(
+        double dx,
+        double dy,
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.PanAsync(dx, dy, cancellationToken);
+
+    public Task<CommandResultDto> ZoomAsync(
+        int direction,
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.ZoomAsync(direction, cancellationToken);
 }

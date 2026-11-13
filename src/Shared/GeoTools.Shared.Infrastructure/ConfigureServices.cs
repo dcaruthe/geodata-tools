@@ -172,6 +172,17 @@ public static class ConfigureServices
         services.AddSingleton<IGeometryCache>(provider =>
             provider.GetRequiredService<GeometryCacheStore>()
         );
+        services.AddSingleton<SqliteRegionIndex>();
+        services.AddSingleton<IRegionIndex>(provider =>
+            provider.GetRequiredService<SqliteRegionIndex>()
+        );
+        services.AddSingleton<IRegionIndexWriter>(provider =>
+            provider.GetRequiredService<SqliteRegionIndex>()
+        );
+        services.AddSingleton<RegionIndexBuilder>();
+        services.AddSingleton<IRegionIndexBuilder>(provider =>
+            provider.GetRequiredService<RegionIndexBuilder>()
+        );
         services.AddSingleton<ISettingsStore, SettingsStore>();
         services.AddSingleton<IBorderGeometryLoader, CachedBorderGeometryLoader>();
 

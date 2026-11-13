@@ -98,6 +98,7 @@ public sealed class SettingsFailureTests
             Options.Create(new MapOptions { AdminLevels = [2] }),
             Options.Create(new GeodataOptions()),
             Options.Create(new FeaturesOptions()),
+            Options.Create(new WindowOptions()),
             new FakeMessageBus(),
             TimeProvider.System,
             NullLogger<SettingsStore>.Instance

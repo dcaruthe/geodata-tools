@@ -146,6 +146,13 @@ public static class RestEndpoints
             .WithSummary("Sets the geometry simplify tolerance.");
 
         api.MapPut(
+                "/settings/window",
+                (WindowBody body, GeoToolsFacade facade, CancellationToken token) =>
+                    facade.SetWindowSizeAsync(body.Maximized, body.Width, body.Height, token)
+            )
+            .WithSummary("Maximizes the window or sets a fixed size.");
+
+        api.MapPut(
                 "/settings/flags/{name}",
                 (string name, EnabledBody body, GeoToolsFacade facade, CancellationToken token) =>
                     facade.SetFeatureFlagAsync(name, body.Enabled, token)
@@ -197,6 +204,121 @@ public static class RestEndpoints
                 }
             )
             .WithSummary("Queries border polylines. GeoJSON needs bounds to stay under the cap.");
+
+        api.MapGet(
+                "/admin-regions",
+                async (
+                    string? levels,
+                    double? minLon,
+                    double? minLat,
+                    double? maxLon,
+                    double? maxLat,
+                    string? parentId,
+                    string? search,
+                    int? limit,
+                    GeoToolsFacade facade,
+                    CancellationToken token
+                ) =>
+                {
+                    var bounds = GeodataQueryService.ParseBounds(minLon, minLat, maxLon, maxLat);
+                    return await facade.GetAdminRegionsAsync(
+                        ParseLevels(levels),
+                        bounds,
+                        parentId,
+                        search,
+                        limit ?? 0,
+                        token
+                    );
+                }
+            )
+            .WithSummary("Lists administrative regions by level, bounds, parent, and name search.");
+
+        api.MapGet(
+                "/admin-regions/at",
+                async (
+                    double? lon,
+                    double? lat,
+                    string? levels,
+                    GeoToolsFacade facade,
+                    CancellationToken token
+                ) =>
+                {
+                    if (lon is null || lat is null)
+                        throw new ArgumentException("lon and lat are required.");
+
+                    ValidateLonLat(lon.Value, lat.Value);
+                    return await facade.GetRegionsAtAsync(
+                        lon.Value,
+                        lat.Value,
+                        ParseLevels(levels),
+                        token
+                    );
+                }
+            )
+            .WithSummary("Lists the administrative regions that contain a point.");
+
+        api.MapGet("/admin-regions/stats", (GeoToolsFacade facade, CancellationToken token) =>
+                facade.GetRegionIndexAsync(token)
+            )
+            .WithSummary("The region index counts, levels, bounds, and database size.");
+
+        api.MapGet(
+                "/admin-regions/{id}",
+                async (string id, GeoToolsFacade facade, CancellationToken token) =>
+                {
+                    var region = await facade.GetAdminRegionAsync(id, token);
+                    return region is null ? Results.NotFound() : Results.Ok(region);
+                }
+            )
+            .WithSummary("One administrative region by id, or 404 when missing.");
+
+        api.MapGet(
+                "/admin-regions/{id}/children",
+                async (string id, int? level, GeoToolsFacade facade, CancellationToken token) =>
+                {
+                    if (level is not > 0)
+                        throw new ArgumentException("level is required and must be positive.");
+
+                    return await facade.GetRegionChildrenAsync(id, level.Value, token);
+                }
+            )
+            .WithSummary("The children of a region at an admin level.");
+
+        var map = app.MapGroup("/api/map").WithTags("map");
+
+        app.MapGet("/api/map", (GeoToolsFacade facade, CancellationToken token) =>
+                facade.GetMapStateAsync(token)
+            )
+            .WithSummary(
+                "The map camera center, zoom, viewport, focus stack, visible levels, and window size."
+            );
+
+        map.MapPost("/focus", (FocusBody body, GeoToolsFacade facade, CancellationToken token) =>
+                facade.FocusPointAsync(body.Longitude, body.Latitude, token)
+            )
+            .WithSummary("Focuses the administrative region under the given point.");
+
+        map.MapPost(
+                "/focus-region",
+                (FocusRegionBody body, GeoToolsFacade facade, CancellationToken token) =>
+                    facade.FocusRegionAsync(body.RegionId, token)
+            )
+            .WithSummary("Focuses a region by id.");
+
+        map.MapPost("/blur", (GeoToolsFacade facade, CancellationToken token) =>
+                facade.BlurFocusAsync(token)
+            )
+            .WithSummary("Pops the focus stack, returning to the parent or the world.");
+
+        map.MapPost("/pan", (PanBody body, GeoToolsFacade facade, CancellationToken token) =>
+                facade.PanAsync(body.Dx, body.Dy, token)
+            )
+            .WithSummary("Pans the camera by a screen-space distance.");
+
+        map.MapPost("/zoom", (ZoomBody body, GeoToolsFacade facade, CancellationToken token) =>
+                facade.ZoomAsync(body.Direction, token)
+            )
+            .WithSummary("Zooms the camera: 1 zooms in, -1 zooms out.");
     }
 
     private static int[]? ParseLevels(string? levels)
@@ -214,5 +336,11 @@ public static class RestEndpoints
             .ToArray();
 
         return parsed.Length == 0 ? null : parsed;
+    }
+
+    private static void ValidateLonLat(double longitude, double latitude)
+    {
+        if (longitude is < -180 or > 180 || latitude is < -90 or > 90)
+            throw new ArgumentException("Coordinates are outside the world extent.");
     }
 }

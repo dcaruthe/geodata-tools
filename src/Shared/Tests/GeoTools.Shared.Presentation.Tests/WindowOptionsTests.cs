@@ -1,5 +1,5 @@
 using FluentAssertions;
-using GeoTools.Shared.Presentation.Options;
+using GeoTools.Shared.Application.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -17,12 +17,14 @@ public sealed class WindowOptionsTests
                 ["Window:Title"] = "GeoTools (development)",
                 ["Window:Width"] = "1600",
                 ["Window:Height"] = "900",
+                ["Window:Maximized"] = "false",
             }
         );
 
         options.Title.Should().Be("GeoTools (development)");
         options.Width.Should().Be(1600);
         options.Height.Should().Be(900);
+        options.Maximized.Should().BeFalse();
     }
 
     [Fact]
@@ -33,6 +35,7 @@ public sealed class WindowOptionsTests
         options.Title.Should().Be("GeoTools");
         options.Width.Should().Be(1200);
         options.Height.Should().Be(800);
+        options.Maximized.Should().BeTrue();
     }
 
     private static WindowOptions ResolveOptions(Dictionary<string, string?> settings)

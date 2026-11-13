@@ -10,7 +10,8 @@ public sealed record SettingsViewDto(
     int[] DisplayLevels,
     int[] ExtractLevels,
     double Tolerance,
-    IReadOnlyList<FlagDto> Flags
+    IReadOnlyList<FlagDto> Flags,
+    WindowSizeDto Window
 );
 
 public sealed record LocalStateDto(
@@ -99,6 +100,39 @@ public sealed record BorderSummaryDto(
 
 public sealed record BorderQueryResponse(BorderSummaryDto Summary, GeoJsonResponse? GeoJson);
 
+public sealed record AdminRegionDto(
+    string Id,
+    string? Name,
+    string? BorderType,
+    int AdminLevel,
+    GeoBounds Bounds,
+    string? ParentId,
+    double Area,
+    int PointCount
+);
+
+public sealed record AdminRegionsResponse(IReadOnlyList<AdminRegionDto> Regions);
+
+public sealed record RegionsAtResponse(
+    double Longitude,
+    double Latitude,
+    IReadOnlyList<AdminRegionDto> Regions
+);
+
+public sealed record RegionChildrenResponse(
+    string ParentId,
+    int ChildLevel,
+    IReadOnlyList<AdminRegionDto> Regions
+);
+
+public sealed record RegionIndexResponse(
+    int RegionCount,
+    int LineCount,
+    int[] Levels,
+    GeoBounds Bounds,
+    long DatabaseBytes
+);
+
 public sealed record ScreenshotInfoDto(
     string Base64Png,
     int Width,
@@ -128,9 +162,19 @@ public sealed record LevelsBody(int[] Levels);
 
 public sealed record ToleranceBody(double Tolerance);
 
+public sealed record WindowBody(bool Maximized, int Width, int Height);
+
 public sealed record EnabledBody(bool Enabled);
 
 public sealed record PipelineBody(PipelineAction Action, bool Confirm);
+
+public sealed record FocusBody(double Longitude, double Latitude);
+
+public sealed record FocusRegionBody(string RegionId);
+
+public sealed record PanBody(double Dx, double Dy);
+
+public sealed record ZoomBody(int Direction);
 
 public sealed record BoundsInput(
     double MinLongitude,
