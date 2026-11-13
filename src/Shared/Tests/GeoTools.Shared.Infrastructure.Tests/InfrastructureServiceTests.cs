@@ -203,6 +203,34 @@ public sealed class GeodataWorkerTests
         await worker.StopAsync(CancellationToken.None);
     }
 
+    [Fact]
+    public async Task A_cancel_delivered_before_a_rebuild_request_cancels_that_run()
+    {
+        var pipeline = new BlockingPipeline();
+        var worker = CreateWorker(pipeline, runOnStartup: false);
+        var bus = new FakeMessageBus();
+        await worker.AttachAsync(bus);
+        await worker.StartAsync(CancellationToken.None);
+
+        await bus.DeliverAsync(
+            MessageTopics.CancelRequested,
+            new CancelRequested("cancel-1", DateTimeOffset.UnixEpoch)
+        );
+        await bus.DeliverAsync(
+            MessageTopics.RebuildRequested,
+            new RebuildRequested(
+                "request-1",
+                RebuildScope.All,
+                false,
+                null,
+                DateTimeOffset.UnixEpoch
+            )
+        );
+
+        await pipeline.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await worker.StopAsync(CancellationToken.None);
+    }
+
     private static GeodataWorker CreateWorker(IGeodataPipeline pipeline, bool runOnStartup) =>
         new(
             pipeline,

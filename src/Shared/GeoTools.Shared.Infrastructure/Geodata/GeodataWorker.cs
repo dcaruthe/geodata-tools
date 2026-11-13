@@ -94,9 +94,20 @@ internal sealed class GeodataWorker(
                 );
                 break;
             case MessageTopics.CancelRequested:
+                CancellationTokenSource? running = null;
+                lock (_runGate)
+                {
+                    // A cancel can arrive after the rebuild request is queued but before the
+                    // worker loop starts the run. Remember it so the run starts cancelled.
+                    if (_current is null)
+                        _cancelPending = true;
+                    else
+                        running = _current;
+                }
+
                 try
                 {
-                    _current?.Cancel();
+                    running?.Cancel();
                 }
                 catch (ObjectDisposedException) { }
 
