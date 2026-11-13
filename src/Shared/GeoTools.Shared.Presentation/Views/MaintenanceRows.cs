@@ -282,6 +282,40 @@ internal static class MaintenanceRows
 
 internal static class MaintenanceLayout
 {
+    // Row geometry. The view draws text on the baseline, so the bar is the glyph box plus a
+    // padding that keeps it clear of the row above and below.
+    public const float Top = 140;
+    public const float RowHeight = 20;
+    public const float TextAscent = 11;
+    public const float TextDescent = 3;
+    public const float RowPadding = 3;
+    public const float BlockGap = 6;
+
+    // Baseline offsets from the window bottom for the footer, status, and confirmation blocks.
+    public const float FooterBaselineFromBottom = 40;
+    public const float StatusBaselineFromBottom = 68;
+    public const float PromptBaselineFromBottom = 92;
+
+    public static float Baseline(int visibleRow) => Top + visibleRow * RowHeight;
+
+    public static (float Top, float Height) Selection(int visibleRow) =>
+        (Baseline(visibleRow) - TextAscent - RowPadding, TextAscent + TextDescent + RowPadding * 2);
+
+    public static int RowsThatFit(float height, bool hasStatus, bool hasPrompt)
+    {
+        var blockTop = BottomBlockTop(height, hasStatus, hasPrompt);
+        return Math.Max(1, (int)Math.Floor((blockTop - BlockGap - Top) / RowHeight) + 1);
+    }
+
+    public static float BottomBlockTop(float height, bool hasStatus, bool hasPrompt)
+    {
+        var baseline =
+            hasPrompt ? PromptBaselineFromBottom
+            : hasStatus ? StatusBaselineFromBottom
+            : FooterBaselineFromBottom;
+        return height - baseline - TextAscent;
+    }
+
     public static (int Start, int Count) Window(int total, int selected, int maxVisible)
     {
         if (total <= 0)

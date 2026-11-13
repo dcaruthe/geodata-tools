@@ -71,6 +71,38 @@ public sealed class MaintenanceRowsTests
     }
 
     [Fact]
+    public void RowsThatFit_reserves_the_footer_status_and_prompt()
+    {
+        var footer = MaintenanceLayout.RowsThatFit(800, hasStatus: false, hasPrompt: false);
+        var status = MaintenanceLayout.RowsThatFit(800, hasStatus: true, hasPrompt: false);
+        var prompt = MaintenanceLayout.RowsThatFit(800, hasStatus: true, hasPrompt: true);
+
+        footer.Should().BeGreaterThanOrEqualTo(29);
+        status.Should().BeLessThan(footer);
+        prompt.Should().BeLessThan(status);
+        MaintenanceLayout.RowsThatFit(260, hasStatus: true, hasPrompt: true).Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData(260f, false, false)]
+    [InlineData(260f, true, true)]
+    [InlineData(300f, false, false)]
+    [InlineData(400f, true, false)]
+    [InlineData(800f, false, false)]
+    public void RowsThatFit_keeps_the_last_row_above_the_bottom_block(
+        float height,
+        bool hasStatus,
+        bool hasPrompt
+    )
+    {
+        var count = MaintenanceLayout.RowsThatFit(height, hasStatus, hasPrompt);
+        var lastInk = MaintenanceLayout.Baseline(count - 1) + MaintenanceLayout.TextDescent;
+        var blockTop = MaintenanceLayout.BottomBlockTop(height, hasStatus, hasPrompt);
+
+        lastInk.Should().BeLessThanOrEqualTo(blockTop - MaintenanceLayout.BlockGap);
+    }
+
+    [Fact]
     public void FormatLevels_marks_an_empty_selection()
     {
         MaintenanceRows.FormatLevels([]).Should().Be("none");
