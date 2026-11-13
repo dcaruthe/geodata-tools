@@ -48,6 +48,9 @@ public sealed class GeoToolsFacade(
         }
 
         var local = await BuildLocalAsync(cancellationToken);
+        if (launcher is not null)
+            local = local with { Settings = await GetSettingsAsync(cancellationToken) };
+
         return new StateResponse(
             launcher,
             launcher is null ? "offline" : "connected",
