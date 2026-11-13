@@ -18,14 +18,14 @@ public sealed class ViewInputRouterTests
             mediator
         );
 
-        router.Handle(ViewKey.Enter).Should().BeFalse();
+        router.Handle(ViewKey.Enter, new ViewSize(800, 600)).Should().BeFalse();
 
         mediator.NavigateTo(ViewId.Map);
-        router.Handle(ViewKey.Enter).Should().BeTrue();
+        router.Handle(ViewKey.Enter, new ViewSize(800, 600)).Should().BeTrue();
         map.Keys.Should().ContainSingle().Which.Should().Be(ViewKey.Enter);
 
         mediator.NavigateTo(ViewId.Maintenance);
-        router.Handle(ViewKey.Down).Should().BeTrue();
+        router.Handle(ViewKey.Down, new ViewSize(800, 600)).Should().BeTrue();
         maintenance.Keys.Should().ContainSingle().Which.Should().Be(ViewKey.Down);
     }
 
@@ -37,7 +37,7 @@ public sealed class ViewInputRouterTests
 
         public SceneDto Compose(ViewSize size) => new([], default);
 
-        public bool Handle(ViewKey key)
+        public bool Handle(ViewKey key, ViewSize size)
         {
             Keys.Add(key);
             return true;

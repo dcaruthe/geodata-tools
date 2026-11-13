@@ -32,7 +32,7 @@ internal sealed class MaintenanceView(MaintenanceController controller) : IView,
 
     public ViewId Id => ViewId.Maintenance;
 
-    public bool Handle(ViewKey key) => controller.Handle(key);
+    public bool Handle(ViewKey key, ViewSize size) => controller.Handle(key);
 
     public SceneDto Compose(ViewSize size)
     {

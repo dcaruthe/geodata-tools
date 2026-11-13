@@ -196,6 +196,12 @@ internal sealed class SceneWindow : GameWindow, IOpenGlContext
             Keys.Down => ViewKey.Down,
             Keys.Left => ViewKey.Left,
             Keys.Right => ViewKey.Right,
+            Keys.W => ViewKey.Up,
+            Keys.S => ViewKey.Down,
+            Keys.A => ViewKey.Left,
+            Keys.D => ViewKey.Right,
+            Keys.Equal or Keys.KeyPadAdd => ViewKey.ZoomIn,
+            Keys.Minus or Keys.KeyPadSubtract => ViewKey.ZoomOut,
             Keys.Enter or Keys.KeyPadEnter => ViewKey.Enter,
             Keys.Backspace => ViewKey.Backspace,
             Keys.Home => ViewKey.Home,
@@ -203,7 +209,10 @@ internal sealed class SceneWindow : GameWindow, IOpenGlContext
             _ => (ViewKey?)null,
         };
 
-        if (viewKey is { } key && _inputRouter.Handle(key))
+        if (
+            viewKey is { } key
+            && _inputRouter.Handle(key, new ViewSize(ClientSize.X, ClientSize.Y))
+        )
         {
             base.OnKeyDown(e);
             return;

@@ -248,7 +248,7 @@ public sealed class WindowCommandPumpTests
     {
         public List<ViewKey> Keys { get; } = [];
 
-        public bool Handle(ViewKey key)
+        public bool Handle(ViewKey key, ViewSize size)
         {
             Keys.Add(key);
             return true;

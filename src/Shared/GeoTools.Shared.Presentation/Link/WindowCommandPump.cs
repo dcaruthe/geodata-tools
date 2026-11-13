@@ -31,7 +31,7 @@ internal sealed class WindowCommandPump(
             return request switch
             {
                 NavigateRequest navigate => Navigate(navigate),
-                PressKeysRequest press => PressKeys(press),
+                PressKeysRequest press => PressKeys(press, size),
                 MaintenanceCommandRequest command => MaintenanceCommand(command),
                 PipelineCommandRequest pipeline => Pipeline(pipeline),
                 ScreenshotRequest screenshot => Screenshot(screenshot, size),
@@ -63,12 +63,12 @@ internal sealed class WindowCommandPump(
         );
     }
 
-    private LinkResponse PressKeys(PressKeysRequest request)
+    private LinkResponse PressKeys(PressKeysRequest request, ViewSize size)
     {
         var handled = 0;
         foreach (var key in request.Keys)
         {
-            if (inputRouter.Handle(ToViewKey(key)))
+            if (inputRouter.Handle(ToViewKey(key), size))
                 handled++;
         }
 

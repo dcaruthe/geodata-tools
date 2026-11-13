@@ -25,6 +25,21 @@ public sealed class MapViewTests
         scene.Shapes.OfType<PolygonDto>().Should().NotBeEmpty();
         scene.Shapes.OfType<PolylineDto>().Should().NotBeEmpty();
         scene.Shapes.OfType<TextDto>().Should().Contain(text => text.Text.Contains("Tab"));
+        scene.Shapes.OfType<TextDto>().Should().Contain(text => text.Text.Contains("WASD"));
+        scene.Shapes.OfType<TextDto>().Should().Contain(text => text.Text.Contains("zoom"));
+    }
+
+    [Fact]
+    public void Compose_draws_the_camera_status_line_at_the_fit_scale()
+    {
+        var view = CreateView(Borders());
+
+        var scene = view.Compose(new ViewSize(800, 600));
+
+        scene
+            .Shapes.OfType<TextDto>()
+            .Should()
+            .Contain(text => text.Text.Contains("Center") && text.Text.Contains("Zoom 1.0x"));
     }
 
     [Fact]
@@ -74,6 +89,33 @@ public sealed class MapViewTests
 
         first.Shapes.OfType<PolygonDto>().Should().NotBeEmpty();
         second.Shapes.OfType<PolygonDto>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Compose_recomposes_when_the_map_state_changes()
+    {
+        var store = CreateStore(Borders());
+        var mapState = new MapStateStore();
+        var settings = new TestSettingsStore();
+        var view = CreateView(store, settings, mapState: mapState);
+        var size = new ViewSize(800, 600);
+
+        var first = view.Compose(size);
+        var fit = MapCamera.Fit(Borders().Bounds, size.Width, size.Height, 24f);
+        var camera = fit.Zoom(2);
+        mapState.Set(
+            new MapViewState(
+                camera,
+                camera.CenterGeo,
+                camera.Viewport(size.Width, size.Height).WorldBounds(size.Width, size.Height),
+                "Focused."
+            )
+        );
+        var second = view.Compose(size);
+
+        second.Should().NotBeSameAs(first);
+        second.Shapes.OfType<TextDto>().Should().Contain(text => text.Text == "Focused.");
+        second.Shapes.OfType<TextDto>().Should().Contain(text => text.Text.Contains("Zoom 2.0x"));
     }
 
     [Fact]
@@ -193,19 +235,32 @@ public sealed class MapViewTests
         CreateView(geometry, new ProgressStore());
 
     private static MapView CreateView(BorderGeometry geometry, ProgressStore progress) =>
-        new(CreateStore(geometry), new TestSettingsStore(), progress, NullLogger<MapView>.Instance);
+        CreateView(CreateStore(geometry), new TestSettingsStore(), progress, new MapStateStore());
 
     private static MapView CreateView(
         BorderGeometryStore store,
         TestSettingsStore? settings = null,
-        ProgressStore? progress = null
-    ) =>
-        new(
+        ProgressStore? progress = null,
+        MapStateStore? mapState = null
+    )
+    {
+        settings ??= new TestSettingsStore();
+        mapState ??= new MapStateStore();
+        var controller = new MapController(
+            mapState,
             store,
-            settings ?? new TestSettingsStore(),
+            settings,
+            NullLogger<MapController>.Instance
+        );
+        return new MapView(
+            store,
+            mapState,
+            controller,
+            settings,
             progress ?? new ProgressStore(),
             NullLogger<MapView>.Instance
         );
+    }
 
     private static BorderGeometryStore CreateStore(BorderGeometry geometry)
     {
