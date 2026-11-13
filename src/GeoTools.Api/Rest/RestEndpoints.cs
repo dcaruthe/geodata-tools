@@ -204,6 +204,42 @@ public static class RestEndpoints
                 }
             )
             .WithSummary("Queries border polylines. GeoJSON needs bounds to stay under the cap.");
+
+        var map = app.MapGroup("/api/map").WithTags("map");
+
+        app.MapGet("/api/map", (GeoToolsFacade facade, CancellationToken token) =>
+                facade.GetMapStateAsync(token)
+            )
+            .WithSummary(
+                "The map camera center, zoom, viewport, focus stack, visible levels, and window size."
+            );
+
+        map.MapPost("/focus", (FocusBody body, GeoToolsFacade facade, CancellationToken token) =>
+                facade.FocusPointAsync(body.Longitude, body.Latitude, token)
+            )
+            .WithSummary("Focuses the administrative region under the given point.");
+
+        map.MapPost(
+                "/focus-region",
+                (FocusRegionBody body, GeoToolsFacade facade, CancellationToken token) =>
+                    facade.FocusRegionAsync(body.RegionId, token)
+            )
+            .WithSummary("Focuses a region by id.");
+
+        map.MapPost("/blur", (GeoToolsFacade facade, CancellationToken token) =>
+                facade.BlurFocusAsync(token)
+            )
+            .WithSummary("Pops the focus stack, returning to the parent or the world.");
+
+        map.MapPost("/pan", (PanBody body, GeoToolsFacade facade, CancellationToken token) =>
+                facade.PanAsync(body.Dx, body.Dy, token)
+            )
+            .WithSummary("Pans the camera by a screen-space distance.");
+
+        map.MapPost("/zoom", (ZoomBody body, GeoToolsFacade facade, CancellationToken token) =>
+                facade.ZoomAsync(body.Direction, token)
+            )
+            .WithSummary("Zooms the camera: 1 zooms in, -1 zooms out.");
     }
 
     private static int[]? ParseLevels(string? levels)

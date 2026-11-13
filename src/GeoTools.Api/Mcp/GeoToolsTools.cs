@@ -228,4 +228,46 @@ public sealed class GeoToolsTools(GeoToolsFacade facade)
 
         return result;
     }
+
+    [McpServerTool(Name = "map_state", ReadOnly = true)]
+    [Description(
+        "The map camera center, zoom, viewport bounds, focus stack, visible levels, and window size."
+    )]
+    public Task<MapStateDto> MapStateAsync(CancellationToken cancellationToken) =>
+        facade.GetMapStateAsync(cancellationToken);
+
+    [McpServerTool(Name = "focus_at", Idempotent = true)]
+    [Description("Focuses the administrative region under the given longitude and latitude.")]
+    public Task<CommandResultDto> FocusAtAsync(
+        [Description("Longitude, for example 10.45.")] double longitude,
+        [Description("Latitude, for example 51.16.")] double latitude,
+        CancellationToken cancellationToken = default
+    ) => facade.FocusPointAsync(longitude, latitude, cancellationToken);
+
+    [McpServerTool(Name = "focus_region", Idempotent = true)]
+    [Description("Focuses a region by id, for example region:51477.")]
+    public Task<CommandResultDto> FocusRegionAsync(
+        [Description("Region id, for example region:51477.")] string regionId,
+        CancellationToken cancellationToken = default
+    ) => facade.FocusRegionAsync(regionId, cancellationToken);
+
+    [McpServerTool(Name = "blur_focus", Idempotent = true)]
+    [Description("Pops the focus stack, returning to the parent region or the world.")]
+    public Task<CommandResultDto> BlurFocusAsync(CancellationToken cancellationToken = default) =>
+        facade.BlurFocusAsync(cancellationToken);
+
+    [McpServerTool(Name = "pan", Idempotent = true)]
+    [Description("Pans the map camera by a screen-space distance in pixels.")]
+    public Task<CommandResultDto> PanAsync(
+        [Description("Horizontal distance in screen pixels, for example 64.")] double dx,
+        [Description("Vertical distance in screen pixels, for example 0.")] double dy,
+        CancellationToken cancellationToken = default
+    ) => facade.PanAsync(dx, dy, cancellationToken);
+
+    [McpServerTool(Name = "zoom", Idempotent = true)]
+    [Description("Zooms the map camera: 1 zooms in and -1 zooms out.")]
+    public Task<CommandResultDto> ZoomAsync(
+        [Description("1 to zoom in, -1 to zoom out.")] int direction,
+        CancellationToken cancellationToken = default
+    ) => facade.ZoomAsync(direction, cancellationToken);
 }

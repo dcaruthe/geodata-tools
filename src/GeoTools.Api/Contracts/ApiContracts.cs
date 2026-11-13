@@ -135,6 +135,14 @@ public sealed record EnabledBody(bool Enabled);
 
 public sealed record PipelineBody(PipelineAction Action, bool Confirm);
 
+public sealed record FocusBody(double Longitude, double Latitude);
+
+public sealed record FocusRegionBody(string RegionId);
+
+public sealed record PanBody(double Dx, double Dy);
+
+public sealed record ZoomBody(int Direction);
+
 public sealed record BoundsInput(
     double MinLongitude,
     double MinLatitude,

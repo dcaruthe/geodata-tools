@@ -27,6 +27,23 @@ public sealed class MapFocusServiceTests
     }
 
     [Fact]
+    public void FocusAt_reports_finding_while_the_hit_test_is_pending()
+    {
+        var fixture = new Fixture();
+        var camera = new MapCamera(0.5, 0.5, 100);
+        fixture.MapState.Set(State(camera));
+        var gate = new TaskCompletionSource<IReadOnlyList<RegionSummary>>();
+        fixture.Index.FindContainingOverride = (_, _, _) => gate.Task;
+
+        fixture.Service.FocusAt(new GeoPoint(0, 0), Size);
+
+        fixture.MapState.Current.Status.Should().Be("Finding region under the crosshair...");
+        fixture.MapState.Current.Camera.Should().Be(camera);
+
+        gate.SetResult([]);
+    }
+
+    [Fact]
     public void FocusAt_reveals_level_4_children_of_a_level_2_region()
     {
         var fixture = new Fixture();
@@ -46,7 +63,7 @@ public sealed class MapFocusServiceTests
         state.VisibleLevels.Should().Equal(2, 4);
         state.Status.Should().Contain("revealing level 4").And.Contain("2 regions");
 
-        fixture.Geometry.AvailableAdminLevels.Should().Equal(2, 4);
+        fixture.Geometry.AvailableAdminLevels.Should().Equal(2);
         fixture
             .Geometry.Geometry.Polylines.Where(polyline => polyline.AdminLevel == 4)
             .Should()

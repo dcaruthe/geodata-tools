@@ -144,6 +144,37 @@ public sealed class ApiSurfaceTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
+    public async Task The_map_routes_return_conflict_without_a_launcher()
+    {
+        (await Client.GetAsync("/api/map")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        (
+            await Client.PostAsJsonAsync(
+                "/api/map/focus",
+                new { longitude = 10.45, latitude = 51.16 }
+            )
+        )
+            .StatusCode.Should()
+            .Be(HttpStatusCode.Conflict);
+
+        (await Client.PostAsJsonAsync("/api/map/focus-region", new { regionId = "region:51477" }))
+            .StatusCode.Should()
+            .Be(HttpStatusCode.Conflict);
+
+        (await Client.PostAsync("/api/map/blur", null))
+            .StatusCode.Should()
+            .Be(HttpStatusCode.Conflict);
+
+        (await Client.PostAsJsonAsync("/api/map/pan", new { dx = 64, dy = 0 }))
+            .StatusCode.Should()
+            .Be(HttpStatusCode.Conflict);
+
+        (await Client.PostAsJsonAsync("/api/map/zoom", new { direction = 1 }))
+            .StatusCode.Should()
+            .Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task Swagger_documents_the_border_endpoint()
     {
         var response = await Client.GetAsync("/swagger/v1/swagger.json");

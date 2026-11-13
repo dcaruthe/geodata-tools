@@ -64,6 +64,7 @@ internal sealed class MapFocusService
             if (SynchronizeRootLocked())
                 ResetToRootLocked(size);
 
+            PublishStatusLocked(size, "Finding region under the crosshair...");
             _ = RunFocusAtAsync(point, size, candidateLevels, generation, token);
         }
     }
@@ -254,7 +255,7 @@ internal sealed class MapFocusService
                 _details[child.Summary.Id] = child;
 
             var visible = VisibleLevelsLocked(_stack);
-            _geometry.Set(ComposeLocked(), visible);
+            _geometry.Set(ComposeLocked(), _rootAvailable);
             _writtenVersion = _geometry.Version;
             _overlay.Set(GeometryProjector.Project(detail.Polylines), region.Name, region.Bounds);
 
@@ -309,7 +310,7 @@ internal sealed class MapFocusService
 
         var parent = _stack[^1];
         var visible = VisibleLevelsLocked(_stack);
-        _geometry.Set(ComposeLocked(), visible);
+        _geometry.Set(ComposeLocked(), _rootAvailable);
         _writtenVersion = _geometry.Version;
         _overlay.Set(
             GeometryProjector.Project(parent.Detail.Polylines),

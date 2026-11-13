@@ -32,6 +32,12 @@ public sealed class McpTests(ApiFactory factory) : IClassFixture<ApiFactory>
                 "maintenance",
                 "borders",
                 "set_window",
+                "map_state",
+                "focus_at",
+                "focus_region",
+                "blur_focus",
+                "pan",
+                "zoom",
             ]);
 
         var result = await client.CallToolAsync("state", new Dictionary<string, object?>());
@@ -92,5 +98,23 @@ public sealed class McpTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         result.IsError.Should().NotBe(true);
         result.Content.OfType<TextContentBlock>().First().Text.Should().Contain("polylineCount");
+    }
+
+    [Fact]
+    public async Task The_map_state_tool_errors_when_the_launcher_is_down()
+    {
+        var transport = new HttpClientTransport(
+            new HttpClientTransportOptions
+            {
+                Endpoint = new Uri("http://localhost/mcp"),
+                TransportMode = HttpTransportMode.StreamableHttp,
+            },
+            factory.CreateClient()
+        );
+
+        await using var client = await McpClient.CreateAsync(transport);
+        var result = await client.CallToolAsync("map_state", new Dictionary<string, object?>());
+
+        result.IsError.Should().BeTrue();
     }
 }

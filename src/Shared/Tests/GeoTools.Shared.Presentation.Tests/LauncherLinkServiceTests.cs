@@ -1,8 +1,10 @@
 using FluentAssertions;
+using GeoTools.Shared.Application.Geospatial;
 using GeoTools.Shared.Application.Link;
 using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Application.Views;
+using GeoTools.Shared.Domain.Geospatial;
 using GeoTools.Shared.Infrastructure.Link;
 using GeoTools.Shared.Infrastructure.Logging;
 using GeoTools.Shared.Presentation.Controls;
@@ -141,6 +143,75 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Map_state_reports_the_camera_zoom_and_window_size()
+    {
+        await using var harness = await Harness.CreateAsync(_directory);
+        var bounds = new GeoBounds(-170, -80, 170, 80);
+        harness.Geometry.Set(Borders(bounds), [2]);
+        var fit = MapCamera.Fit(bounds, 1024, 768, 24f);
+        var camera = new MapCamera(fit.CenterX, fit.CenterY, fit.Scale * 2);
+        harness.MapState.Set(
+            new MapViewState(
+                camera,
+                camera.CenterGeo,
+                camera.Viewport(1024, 768).WorldBounds(1024, 768),
+                "Focused Germany",
+                [new FocusedRegion("region:51477", "Germany", 2, bounds)],
+                [2, 4]
+            )
+        );
+
+        var state = await harness.Client.GetMapStateAsync();
+
+        state.CenterLongitude.Should().Be(camera.CenterGeo.Longitude);
+        state.CenterLatitude.Should().Be(camera.CenterGeo.Latitude);
+        state.Zoom.Should().BeApproximately(2.0, 1e-9);
+        state.WindowWidth.Should().Be(1024);
+        state.WindowHeight.Should().Be(768);
+        state.Status.Should().Be("Focused Germany");
+        state.VisibleLevels.Should().Equal(2, 4);
+        state.Focus.Should().Equal(new FocusedRegionDto("region:51477", "Germany", 2, bounds));
+        state.Viewport.MinLongitude.Should().BeLessThan(state.Viewport.MaxLongitude);
+        state.Viewport.MinLatitude.Should().BeLessThan(state.Viewport.MaxLatitude);
+    }
+
+    [Fact]
+    public async Task Map_state_reports_the_fit_camera_when_uninitialised()
+    {
+        await using var harness = await Harness.CreateAsync(_directory);
+
+        var state = await harness.Client.GetMapStateAsync();
+
+        var fit = MapCamera.Fit(GeoBounds.World, 1024, 768, 24f);
+        state.CenterLongitude.Should().Be(fit.CenterGeo.Longitude);
+        state.Zoom.Should().Be(1);
+        state.Focus.Should().BeEmpty();
+        state.WindowWidth.Should().Be(1024);
+        state.WindowHeight.Should().Be(768);
+        state.Viewport.MinLongitude.Should().BeLessThan(state.Viewport.MaxLongitude);
+        state.Viewport.MinLatitude.Should().BeLessThan(state.Viewport.MaxLatitude);
+    }
+
+    [Fact]
+    public async Task Map_commands_cross_the_inbox()
+    {
+        await using var harness = await Harness.CreateAsync(_directory);
+
+        (await harness.Client.FocusPointAsync(10.45, 51.16)).Accepted.Should().BeTrue();
+        (await harness.Client.FocusRegionAsync("region:51477")).Accepted.Should().BeTrue();
+        (await harness.Client.BlurFocusAsync()).Accepted.Should().BeTrue();
+        (await harness.Client.PanAsync(64, 0)).Accepted.Should().BeTrue();
+        (await harness.Client.ZoomAsync(1)).Accepted.Should().BeTrue();
+
+        harness.InboxCommands.Should().Contain(typeof(FocusPointRequest));
+        harness.InboxCommands.Should().Contain(typeof(FocusRegionRequest));
+        harness.InboxCommands.Should().Contain(typeof(BlurFocusRequest));
+        harness.InboxCommands.Should().Contain(typeof(PanRequest));
+        harness.InboxCommands.Should().Contain(typeof(ZoomRequest));
+        harness.InboxCommands.Should().NotContain(typeof(GetMapStateRequest));
+    }
+
+    [Fact]
     public async Task A_socket_path_that_cannot_be_bound_leaves_the_service_running()
     {
         var options = Options(Path.Combine(_directory, "launcher.sock"));
@@ -189,12 +260,31 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
             HandshakeTimeoutSeconds = 5,
         };
 
+    private static BorderGeometry Borders(GeoBounds bounds) =>
+        BorderGeometry.FromGeo(
+            [
+                new GeoPolyline(
+                    [
+                        new GeoPoint(bounds.MinLongitude, bounds.MinLatitude),
+                        new GeoPoint(bounds.MaxLongitude, bounds.MinLatitude),
+                        new GeoPoint(bounds.MaxLongitude, bounds.MaxLatitude),
+                        new GeoPoint(bounds.MinLongitude, bounds.MaxLatitude),
+                        new GeoPoint(bounds.MinLongitude, bounds.MinLatitude),
+                    ],
+                    Closed: true,
+                    AdminLevel: 2
+                ),
+            ],
+            bounds
+        );
+
     private sealed class Harness : IAsyncDisposable
     {
         private readonly CancellationTokenSource _drainCts = new();
         private readonly Task _drain;
         private readonly LauncherLinkService _service;
         private readonly WindowCommandInbox _inbox;
+        private readonly List<Type> _inboxCommands = [];
 
         private Harness(
             LauncherLinkService service,
@@ -203,6 +293,8 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
             TestSettingsStore settings,
             FakeJobStore jobs,
             InMemoryLogStore logs,
+            MapStateStore mapState,
+            BorderGeometryStore geometry,
             string socketPath
         )
         {
@@ -212,6 +304,8 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
             Settings = settings;
             Jobs = jobs;
             Logs = logs;
+            MapState = mapState;
+            Geometry = geometry;
             SocketPath = socketPath;
             _drain = Task.Run(DrainAsync);
         }
@@ -225,6 +319,12 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
         public FakeJobStore Jobs { get; }
 
         public InMemoryLogStore Logs { get; }
+
+        public MapStateStore MapState { get; }
+
+        public BorderGeometryStore Geometry { get; }
+
+        public IReadOnlyList<Type> InboxCommands => _inboxCommands;
 
         public string SocketPath { get; }
 
@@ -263,6 +363,8 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
             var logs = new InMemoryLogStore();
             var windowState = new WindowStateStore();
             windowState.Set(new WindowStateSnapshot(1024, 768, false));
+            var mapState = new MapStateStore();
+            var geometry = new BorderGeometryStore();
             var service = new LauncherLinkService(
                 Microsoft.Extensions.Options.Options.Create(options),
                 Microsoft.Extensions.Options.Options.Create(
@@ -278,6 +380,8 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
                 jobs,
                 settings,
                 windowState,
+                mapState,
+                geometry,
                 controller,
                 new FakeNavigationMediator(),
                 logs,
@@ -299,6 +403,8 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
                 settings,
                 jobs,
                 logs,
+                mapState,
+                geometry,
                 GeoTools.Shared.Infrastructure.Link.LinkKey.ResolvePath(options.SocketPath)
             );
         }
@@ -323,7 +429,8 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
             {
                 while (_inbox.TryDequeue(out var command))
                 {
-                    var response = command!.Request switch
+                    _inboxCommands.Add(command!.Request.GetType());
+                    var response = command.Request switch
                     {
                         NavigateRequest navigate => LinkResponse.Success(
                             navigate.Id,

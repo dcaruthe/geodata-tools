@@ -1,4 +1,5 @@
 using GeoTools.Shared.Application.Views;
+using GeoTools.Shared.Domain.Geospatial;
 
 namespace GeoTools.Shared.Application.Link;
 
@@ -116,3 +117,18 @@ public sealed record CommandResultDto(
 
     public static CommandResultDto Failed(string error) => new(false, string.Empty, null, error);
 }
+
+public sealed record FocusedRegionDto(string Id, string? Name, int AdminLevel, GeoBounds Bounds);
+
+public sealed record MapStateDto(
+    double CenterLongitude,
+    double CenterLatitude,
+    double Scale,
+    double Zoom,
+    GeoBounds Viewport,
+    IReadOnlyList<FocusedRegionDto> Focus,
+    int[] VisibleLevels,
+    string Status,
+    int WindowWidth,
+    int WindowHeight
+);

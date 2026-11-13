@@ -99,6 +99,14 @@ internal sealed class MapController
         return true;
     }
 
+    public bool ZoomByDirection(int direction, ViewSize size) =>
+        direction switch
+        {
+            1 => Zoom(ZoomStep, size),
+            -1 => Zoom(1 / ZoomStep, size),
+            _ => false,
+        };
+
     public bool Zoom(double factor, ViewSize size)
     {
         var bounds = BoundsFor(_geometry.Geometry);

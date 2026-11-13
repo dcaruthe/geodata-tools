@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using GeoTools.Shared.Application.Diagnostics;
+using GeoTools.Shared.Application.Geospatial;
 using GeoTools.Shared.Application.Link;
 using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Application.Storage;
 using GeoTools.Shared.Application.Views;
+using GeoTools.Shared.Domain.Geospatial;
 using GeoTools.Shared.Infrastructure.Link;
 using GeoTools.Shared.Presentation.Controls;
 using GeoTools.Shared.Presentation.Views;
@@ -27,6 +29,8 @@ internal sealed class LauncherLinkService(
     IJobStore jobs,
     ISettingsStore settings,
     IWindowStateStore windowState,
+    IMapStateStore mapState,
+    IBorderGeometryStore geometry,
     MaintenanceController maintenance,
     INavigationMediator mediator,
     ILogStore logs,
@@ -135,6 +139,10 @@ internal sealed class LauncherLinkService(
                     reset.Id,
                     await settings.ResetToConfigurationAsync(cancellationToken)
                 ),
+                GetMapStateRequest mapStateRequest => LinkResponse.Success(
+                    mapStateRequest.Id,
+                    BuildMapState()
+                ),
                 _ => await inbox.EnqueueAsync(
                     request,
                     TimeSpan.FromSeconds(options.Value.CommandTimeoutSeconds),
@@ -240,6 +248,69 @@ internal sealed class LauncherLinkService(
             )
         );
     }
+
+    private MapStateDto BuildMapState()
+    {
+        var live = windowState.Current;
+        var width = live.Width;
+        var height = live.Height;
+        var state = mapState.Current;
+        var bounds = MapController.BoundsFor(geometry.Geometry);
+        var fit = MapCamera.Fit(bounds, width, height, FitPadding);
+
+        if (!state.IsInitialised)
+        {
+            return new MapStateDto(
+                fit.CenterGeo.Longitude,
+                fit.CenterGeo.Latitude,
+                fit.Scale,
+                1,
+                ToGeoBounds(fit.Viewport(width, height).WorldBounds(width, height)),
+                [],
+                [],
+                string.Empty,
+                width,
+                height
+            );
+        }
+
+        var camera = state.Camera;
+        var zoom = fit.Scale > 0 && double.IsFinite(fit.Scale) ? camera.Scale / fit.Scale : 1;
+        return new MapStateDto(
+            camera.CenterGeo.Longitude,
+            camera.CenterGeo.Latitude,
+            camera.Scale,
+            zoom,
+            ToGeoBounds(camera.Viewport(width, height).WorldBounds(width, height)),
+            state
+                .Focus.Select(region => new FocusedRegionDto(
+                    region.Id,
+                    region.Name,
+                    region.AdminLevel,
+                    region.Bounds
+                ))
+                .ToArray(),
+            state.VisibleLevels.ToArray(),
+            state.Status,
+            width,
+            height
+        );
+    }
+
+    private static GeoBounds ToGeoBounds(WorldRect rect)
+    {
+        // World Y grows southward: MinY is the north edge and MaxY is the south edge.
+        var southWest = MapProjection.Unproject(rect.MinX, rect.MaxY);
+        var northEast = MapProjection.Unproject(rect.MaxX, rect.MinY);
+        return new GeoBounds(
+            southWest.Longitude,
+            southWest.Latitude,
+            northEast.Longitude,
+            northEast.Latitude
+        );
+    }
+
+    private const float FitPadding = 24f;
 
     private MaintenanceDto BuildMaintenance()
     {

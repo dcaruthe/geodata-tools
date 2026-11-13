@@ -1,10 +1,12 @@
 using FluentAssertions;
+using GeoTools.Shared.Application.Geospatial;
 using GeoTools.Shared.Application.Link;
 using GeoTools.Shared.Application.Messaging.Messages;
 using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.Scenes;
 using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Application.Views;
+using GeoTools.Shared.Domain.Geospatial;
 using GeoTools.Shared.Domain.Primatives;
 using GeoTools.Shared.Infrastructure.Rendering;
 using GeoTools.Shared.Presentation.Link;
@@ -194,17 +196,180 @@ public sealed class WindowCommandPumpTests
         response.Error!.Code.Should().Be(LinkError.Internal);
     }
 
+    [Fact]
+    public async Task A_focus_point_command_reaches_the_controller()
+    {
+        var harness = await CreateAsync();
+        GeoPoint? captured = null;
+        harness.Index.FindContainingOverride = (point, _, _) =>
+        {
+            captured = point;
+            return Task.FromResult<IReadOnlyList<RegionSummary>>([]);
+        };
+
+        var pending = harness.Enqueue(new FocusPointRequest("1", 10.45, 51.16));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeTrue(response.Error?.Message);
+        response
+            .ReadPayload<CommandResultDto>()!
+            .Status.Should()
+            .Contain("Focusing the region at 10.45");
+        captured.Should().Be(new GeoPoint(10.45, 51.16));
+    }
+
+    [Fact]
+    public async Task A_focus_region_command_reaches_the_controller()
+    {
+        var harness = await CreateAsync();
+        string? captured = null;
+        harness.Index.GetRegionOverride = (id, _) =>
+        {
+            captured = id;
+            return Task.FromResult<RegionDetail?>(null);
+        };
+
+        var pending = harness.Enqueue(new FocusRegionRequest("1", "region:51477"));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeTrue(response.Error?.Message);
+        response
+            .ReadPayload<CommandResultDto>()!
+            .Status.Should()
+            .Contain("Focusing region region:51477");
+        captured.Should().Be("region:51477");
+    }
+
+    [Fact]
+    public async Task A_blur_command_fails_when_nothing_is_focused()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(new BlurFocusRequest("1"));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeFalse();
+        response.Error!.Code.Should().Be(LinkError.InvalidRequest);
+    }
+
+    [Fact]
+    public async Task A_blur_command_pops_after_a_focus()
+    {
+        var harness = await CreateAsync();
+        var a = Summary("A", "Region A", 2, -80, -50, 80, 50);
+        harness.Index.Add(a, [Ring(2, -80, -50, 80, 50)]);
+        harness.Index.FindContainingResult = [a];
+
+        var focus = harness.Enqueue(new FocusPointRequest("1", 0, 0));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        await focus;
+
+        var blur = harness.Enqueue(new BlurFocusRequest("2"));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await blur;
+
+        response.Ok.Should().BeTrue(response.Error?.Message);
+        response.ReadPayload<CommandResultDto>()!.Status.Should().Contain("Popped the focus stack");
+        harness.MapState.Current.Focus.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_pan_command_reaches_the_controller()
+    {
+        var harness = await CreateAsync();
+        var before = harness.MapState.Version;
+
+        var pending = harness.Enqueue(new PanRequest("1", 64, 0));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeTrue(response.Error?.Message);
+        response.ReadPayload<CommandResultDto>()!.Status.Should().Contain("Panned by 64,0 px");
+        harness.MapState.Version.Should().BeGreaterThan(before);
+    }
+
+    [Fact]
+    public async Task A_zoom_command_changes_the_camera()
+    {
+        var harness = await CreateAsync();
+        var before = harness.MapState.Current.Camera.Scale;
+
+        var pending = harness.Enqueue(new ZoomRequest("1", 1));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeTrue(response.Error?.Message);
+        response.ReadPayload<CommandResultDto>()!.Status.Should().Contain("Zoomed in");
+        harness.MapState.Current.Camera.Scale.Should().BeGreaterThan(before);
+    }
+
+    [Fact]
+    public async Task A_zoom_out_command_shrinks_the_camera()
+    {
+        var harness = await CreateAsync();
+        harness.Map.ZoomByDirection(1, new ViewSize(800, 600));
+        var before = harness.MapState.Current.Camera.Scale;
+
+        var pending = harness.Enqueue(new ZoomRequest("1", -1));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeTrue(response.Error?.Message);
+        response.ReadPayload<CommandResultDto>()!.Status.Should().Contain("Zoomed out");
+        harness.MapState.Current.Camera.Scale.Should().BeLessThan(before);
+    }
+
+    [Fact]
+    public async Task An_invalid_zoom_direction_is_refused()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(new ZoomRequest("1", 0));
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeFalse();
+        response.Error!.Code.Should().Be(LinkError.InvalidRequest);
+    }
+
     private static async Task<Harness> CreateAsync(bool failingScene = false)
     {
         var settings = new TestSettingsStore();
         var bus = new FakeMessageBus();
         var mediator = new FakeNavigationMediator();
+        var geometry = new BorderGeometryStore();
+        geometry.Set(Borders(), [2]);
+        var mapState = new MapStateStore();
+        var overlay = new FocusOverlayStore();
+        var index = new FakeRegionIndex();
+        var writer = new FakeRegionIndexWriter();
+        var focus = new MapFocusService(
+            index,
+            writer,
+            geometry,
+            mapState,
+            overlay,
+            settings,
+            NullLogger<MapFocusService>.Instance
+        );
+        var map = new MapController(
+            mapState,
+            geometry,
+            settings,
+            focus,
+            NullLogger<MapController>.Instance
+        );
+        map.EnsureInitialised(new ViewSize(800, 600));
+
         var controller = new MaintenanceController(
             settings,
             new FakeJobStore(),
             new FakeArtifactStore(),
             new ProgressStore(),
-            new BorderGeometryStore(),
+            geometry,
             bus,
             Microsoft.Extensions.Options.Options.Create(
                 new GeodataOptions { Regions = ["africa"] }
@@ -223,13 +388,57 @@ public sealed class WindowCommandPumpTests
             router,
             new FakeSceneSource(failingScene),
             controller,
+            map,
             new SkiaOffscreenSurface(),
             TimeProvider.System,
             NullLogger<WindowCommandPump>.Instance
         );
 
-        return new Harness(inbox, pump, mediator, router, settings, bus);
+        return new Harness(
+            inbox,
+            pump,
+            mediator,
+            router,
+            settings,
+            bus,
+            mapState,
+            geometry,
+            index,
+            map
+        );
     }
+
+    private static RegionSummary Summary(
+        string id,
+        string name,
+        int level,
+        double minLon,
+        double minLat,
+        double maxLon,
+        double maxLat
+    ) => new(id, name, null, level, new GeoBounds(minLon, minLat, maxLon, maxLat), null, 1, 5);
+
+    private static GeoPolyline Ring(
+        int level,
+        double minLon,
+        double minLat,
+        double maxLon,
+        double maxLat
+    ) =>
+        new(
+            [
+                new GeoPoint(minLon, minLat),
+                new GeoPoint(maxLon, minLat),
+                new GeoPoint(maxLon, maxLat),
+                new GeoPoint(minLon, maxLat),
+                new GeoPoint(minLon, minLat),
+            ],
+            Closed: true,
+            AdminLevel: level
+        );
+
+    private static BorderGeometry Borders() =>
+        BorderGeometry.FromGeo([Ring(2, -170, -80, 170, 80)], new GeoBounds(-170, -80, 170, 80));
 
     private sealed record Harness(
         WindowCommandInbox Inbox,
@@ -237,7 +446,11 @@ public sealed class WindowCommandPumpTests
         FakeNavigationMediator Mediator,
         FakeInputRouter Router,
         TestSettingsStore Settings,
-        FakeMessageBus Bus
+        FakeMessageBus Bus,
+        MapStateStore MapState,
+        BorderGeometryStore Geometry,
+        FakeRegionIndex Index,
+        MapController Map
     )
     {
         public Task<LinkResponse> Enqueue(LinkRequest request) =>

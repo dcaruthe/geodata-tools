@@ -34,4 +34,5 @@ This directory is the maintained source for verifying the user-facing behavior o
 - [Window size](./window.md) covers the maximized default, the stored size, the Maintenance row, live apply, resize persistence, and the API and link surface.
 - [Admin level configuration](./admin-level-config.md) covers display levels at runtime, extraction levels, the empty selection, and the missing-level message.
 - [Geodata pipeline](./geodata-pipeline.md) covers adoption, download, extraction, the geometry cache, skip paths, failure, and the headless CLI.
+- [Map focus](./map-focus.md) covers the crosshair hit test, framing a region, revealing child levels, the highlight and label, popping the focus stack, and the map camera and focus commands over the link, REST, GraphQL, and MCP.
 - [API and MCP](./api-and-mcp.md) covers REST, Swagger, GraphQL, the MCP tools, the screenshot, the launcher link, key rotation, and the launcher-down state.

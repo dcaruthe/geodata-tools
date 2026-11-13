@@ -86,5 +86,28 @@ public interface ILauncherLink
 
     Task<CommandResultDto> ResetSettingsAsync(CancellationToken cancellationToken = default);
 
+    Task<MapStateDto> GetMapStateAsync(CancellationToken cancellationToken = default);
+
+    Task<CommandResultDto> FocusPointAsync(
+        double longitude,
+        double latitude,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<CommandResultDto> FocusRegionAsync(
+        string regionId,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<CommandResultDto> BlurFocusAsync(CancellationToken cancellationToken = default);
+
+    Task<CommandResultDto> PanAsync(
+        double dx,
+        double dy,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<CommandResultDto> ZoomAsync(int direction, CancellationToken cancellationToken = default);
+
     Task RotateIfDueAsync(CancellationToken cancellationToken = default);
 }

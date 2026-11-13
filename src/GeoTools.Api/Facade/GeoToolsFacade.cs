@@ -144,6 +144,32 @@ public sealed class GeoToolsFacade(
     public Task<CommandResultDto> ResetSettingsAsync(CancellationToken cancellationToken) =>
         link.ResetSettingsAsync(cancellationToken);
 
+    public Task<MapStateDto> GetMapStateAsync(CancellationToken cancellationToken) =>
+        link.GetMapStateAsync(cancellationToken);
+
+    public Task<CommandResultDto> FocusPointAsync(
+        double longitude,
+        double latitude,
+        CancellationToken cancellationToken
+    ) => link.FocusPointAsync(longitude, latitude, cancellationToken);
+
+    public Task<CommandResultDto> FocusRegionAsync(
+        string regionId,
+        CancellationToken cancellationToken
+    ) => link.FocusRegionAsync(regionId, cancellationToken);
+
+    public Task<CommandResultDto> BlurFocusAsync(CancellationToken cancellationToken) =>
+        link.BlurFocusAsync(cancellationToken);
+
+    public Task<CommandResultDto> PanAsync(
+        double dx,
+        double dy,
+        CancellationToken cancellationToken
+    ) => link.PanAsync(dx, dy, cancellationToken);
+
+    public Task<CommandResultDto> ZoomAsync(int direction, CancellationToken cancellationToken) =>
+        link.ZoomAsync(direction, cancellationToken);
+
     public async Task<SettingsViewDto> GetSettingsAsync(CancellationToken cancellationToken)
     {
         try

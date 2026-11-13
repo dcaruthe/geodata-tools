@@ -20,6 +20,12 @@ namespace GeoTools.Shared.Application.Link;
 [JsonDerivedType(typeof(SetWindowSizeRequest), "set-window-size")]
 [JsonDerivedType(typeof(SetFeatureFlagRequest), "set-feature-flag")]
 [JsonDerivedType(typeof(ResetSettingsRequest), "reset-settings")]
+[JsonDerivedType(typeof(GetMapStateRequest), "get-map-state")]
+[JsonDerivedType(typeof(FocusPointRequest), "focus-point")]
+[JsonDerivedType(typeof(FocusRegionRequest), "focus-region")]
+[JsonDerivedType(typeof(BlurFocusRequest), "blur-focus")]
+[JsonDerivedType(typeof(PanRequest), "pan")]
+[JsonDerivedType(typeof(ZoomRequest), "zoom")]
 public abstract record LinkRequest(string Id);
 
 public sealed record GetStateRequest(string Id) : LinkRequest(Id);
@@ -61,6 +67,19 @@ public sealed record SetWindowSizeRequest(string Id, bool Maximized, int Width, 
 public sealed record SetFeatureFlagRequest(string Id, string Flag, bool Enabled) : LinkRequest(Id);
 
 public sealed record ResetSettingsRequest(string Id) : LinkRequest(Id);
+
+public sealed record GetMapStateRequest(string Id) : LinkRequest(Id);
+
+public sealed record FocusPointRequest(string Id, double Longitude, double Latitude)
+    : LinkRequest(Id);
+
+public sealed record FocusRegionRequest(string Id, string RegionId) : LinkRequest(Id);
+
+public sealed record BlurFocusRequest(string Id) : LinkRequest(Id);
+
+public sealed record PanRequest(string Id, double Dx, double Dy) : LinkRequest(Id);
+
+public sealed record ZoomRequest(string Id, int Direction) : LinkRequest(Id);
 
 public sealed record LinkResponse(string Id, bool Ok, JsonElement? Payload, LinkError? Error)
 {

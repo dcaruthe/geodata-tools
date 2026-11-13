@@ -78,4 +78,9 @@ public sealed class Query
         [Service] GeoToolsFacade facade,
         CancellationToken cancellationToken
     ) => facade.GetScreenshotInfoAsync(width, height, cancellationToken);
+
+    public Task<MapStateDto> GetMapStateAsync(
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.GetMapStateAsync(cancellationToken);
 }
