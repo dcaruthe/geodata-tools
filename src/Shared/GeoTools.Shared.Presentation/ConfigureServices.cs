@@ -4,8 +4,10 @@ using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.Rendering;
 using GeoTools.Shared.Application.Views;
 using GeoTools.Shared.Infrastructure;
+using GeoTools.Shared.Infrastructure.Rendering;
 using GeoTools.Shared.Infrastructure.Rendering.OpenGl;
 using GeoTools.Shared.Presentation.Controls;
+using GeoTools.Shared.Presentation.Link;
 using GeoTools.Shared.Presentation.Options;
 using GeoTools.Shared.Presentation.Views;
 using GeoTools.Shared.Presentation.Workers;
@@ -60,13 +62,15 @@ public static class ConfigureServices
             return SceneWindow.Create(
                 options,
                 provider.GetRequiredService<INavigationMediator>(),
-                provider.GetRequiredService<IViewInputRouter>()
+                provider.GetRequiredService<IViewInputRouter>(),
+                provider.GetRequiredService<WindowCommandPump>()
             );
         });
         services.AddSingleton<IOpenGlContext>(provider =>
             provider.GetRequiredService<SceneWindow>()
         );
         services.AddSingleton<SkiaOpenGlSurface>();
+        services.AddSingleton<SkiaOffscreenSurface>();
         services.AddSingleton<IRenderSurface>(provider =>
             provider.GetRequiredService<SkiaOpenGlSurface>()
         );
@@ -84,6 +88,9 @@ public static class ConfigureServices
         services.AddSingleton<IMessageSubscription, ViewTransitionSubscriber>();
         services.AddSingleton<ViewCatalog>();
         services.AddSingleton<ISceneSource, ActiveViewSceneSource>();
+        services.AddSingleton<WindowCommandInbox>();
+        services.AddSingleton<WindowCommandPump>();
+        services.AddHostedService<LauncherLinkService>();
         services.AddHostedService<RenderingWorker>();
 
         return services;

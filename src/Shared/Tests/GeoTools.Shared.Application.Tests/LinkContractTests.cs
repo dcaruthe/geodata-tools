@@ -17,8 +17,14 @@ public sealed class LinkContractTests
             new ScreenshotRequest("5", 800, 600, ScreenshotMode.Scene),
             new NavigateRequest("6", ViewId.Maintenance),
             new PressKeysRequest("7", [WindowKey.Down, WindowKey.Enter]),
-            new MaintenanceCommandRequest("8", MaintenanceOperation.Adjust, "displayLevels", 1),
-            new PipelineCommandRequest("9", PipelineAction.Repull, true, true),
+            new MaintenanceCommandRequest(
+                "8",
+                MaintenanceOperation.Adjust,
+                "displayLevels",
+                1,
+                false
+            ),
+            new PipelineCommandRequest("9", PipelineAction.Repull, true),
             new SetDisplayLevelsRequest("10", [2, 4]),
             new SetExtractLevelsRequest("11", [2]),
             new SetToleranceRequest("12", 0.005),

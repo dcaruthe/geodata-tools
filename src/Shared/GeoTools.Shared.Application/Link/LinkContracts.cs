@@ -41,15 +41,12 @@ public sealed record MaintenanceCommandRequest(
     string Id,
     MaintenanceOperation Operation,
     string? RowId,
-    int Direction
-) : LinkRequest(Id);
-
-public sealed record PipelineCommandRequest(
-    string Id,
-    PipelineAction Action,
-    bool Force,
+    int Direction,
     bool Confirm
 ) : LinkRequest(Id);
+
+public sealed record PipelineCommandRequest(string Id, PipelineAction Action, bool Confirm)
+    : LinkRequest(Id);
 
 public sealed record SetDisplayLevelsRequest(string Id, int[] Levels) : LinkRequest(Id);
 

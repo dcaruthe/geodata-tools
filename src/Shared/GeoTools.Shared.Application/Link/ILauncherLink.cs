@@ -46,12 +46,12 @@ public interface ILauncherLink
         MaintenanceOperation operation,
         string? rowId,
         int direction = 0,
+        bool confirm = false,
         CancellationToken cancellationToken = default
     );
 
     Task<CommandResultDto> PipelineAsync(
         PipelineAction action,
-        bool force = false,
         bool confirm = false,
         CancellationToken cancellationToken = default
     );

@@ -80,26 +80,23 @@ public sealed class LauncherLinkClient(
         MaintenanceOperation operation,
         string? rowId,
         int direction = 0,
+        bool confirm = false,
         CancellationToken cancellationToken = default
     ) =>
         Payload<CommandResultDto>(
             await SendAsync(
-                new MaintenanceCommandRequest(NewId(), operation, rowId, direction),
+                new MaintenanceCommandRequest(NewId(), operation, rowId, direction, confirm),
                 cancellationToken
             )
         );
 
     public async Task<CommandResultDto> PipelineAsync(
         PipelineAction action,
-        bool force = false,
         bool confirm = false,
         CancellationToken cancellationToken = default
     ) =>
         Payload<CommandResultDto>(
-            await SendAsync(
-                new PipelineCommandRequest(NewId(), action, force, confirm),
-                cancellationToken
-            )
+            await SendAsync(new PipelineCommandRequest(NewId(), action, confirm), cancellationToken)
         );
 
     public async Task<CommandResultDto> SetDisplayLevelsAsync(

@@ -3,7 +3,7 @@ using GeoTools.Shared.Application.Storage;
 
 namespace GeoTools.Shared.Infrastructure.Link;
 
-internal static class LinkKey
+public static class LinkKey
 {
     public static string ResolvePath(string configured) => RepositoryPaths.Resolve(configured);
 

@@ -228,6 +228,83 @@ public sealed class MaintenanceControllerTests
         bus.Published.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Selecting_a_row_by_id_does_not_need_key_presses()
+    {
+        var (controller, _, _) = Create();
+        await controller.AttachAsync(new FakeMessageBus());
+
+        var result = controller.SelectRow("tolerance");
+
+        result.Accepted.Should().BeTrue();
+        controller.Snapshot.Selected?.Id.Should().Be("tolerance");
+    }
+
+    [Fact]
+    public async Task Adjusting_by_row_id_saves_the_setting()
+    {
+        var (controller, settings, _) = Create();
+        await controller.AttachAsync(new FakeMessageBus());
+
+        var result = controller.AdjustRow("displayLevels", 1);
+
+        result.Accepted.Should().BeTrue();
+        settings.Map.AdminLevels.Should().Equal(2, 4);
+    }
+
+    [Fact]
+    public async Task A_destructive_action_needs_confirm_and_then_publishes()
+    {
+        var (controller, _, bus) = Create();
+        await controller.AttachAsync(new FakeMessageBus());
+
+        var pending = controller.ActivateRow("action:repull", confirm: false);
+
+        pending.Accepted.Should().BeTrue();
+        pending.PendingConfirmation.Should().Be("action:repull");
+        bus.Published.Should().BeEmpty();
+
+        var confirmed = controller.ActivateRow("action:repull", confirm: true);
+
+        confirmed.Accepted.Should().BeTrue();
+        confirmed.PendingConfirmation.Should().BeNull();
+        bus.Published.OfType<RebuildRequested>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task An_unknown_row_is_rejected()
+    {
+        var (controller, _, _) = Create();
+        await controller.AttachAsync(new FakeMessageBus());
+
+        controller.SelectRow("nope").Accepted.Should().BeFalse();
+        controller.AdjustRow("nope", 1).Accepted.Should().BeFalse();
+        controller.ActivateRow("nope", confirm: true).Accepted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_disabled_row_is_rejected()
+    {
+        var (controller, _, _) = Create(running: true);
+        await controller.AttachAsync(new FakeMessageBus());
+
+        var result = controller.ActivateRow("action:repull", confirm: true);
+
+        result.Accepted.Should().BeFalse();
+        result.Error.Should().Contain("disabled");
+    }
+
+    [Fact]
+    public async Task Cancelling_by_command_publishes_a_cancel()
+    {
+        var (controller, _, bus) = Create(running: true);
+        await controller.AttachAsync(new FakeMessageBus());
+
+        controller.CancelRun().Accepted.Should().BeTrue();
+
+        bus.Published.OfType<CancelRequested>().Should().ContainSingle();
+    }
+
     private static (
         MaintenanceController Controller,
         TestSettingsStore Settings,
