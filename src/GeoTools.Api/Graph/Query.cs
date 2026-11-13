@@ -30,7 +30,10 @@ public sealed class Query
         CancellationToken cancellationToken
     ) => facade.GetMaintenanceAsync(cancellationToken);
 
-    public SettingsViewDto GetSettings([Service] GeoToolsFacade facade) => facade.GetSettings();
+    public Task<SettingsViewDto> GetSettingsAsync(
+        [Service] GeoToolsFacade facade,
+        CancellationToken cancellationToken
+    ) => facade.GetSettingsAsync(cancellationToken);
 
     public Task<RunDetailDto?> GetLatestRunAsync(
         [Service] GeoToolsFacade facade,

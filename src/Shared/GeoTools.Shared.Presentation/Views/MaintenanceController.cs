@@ -80,7 +80,15 @@ internal sealed class MaintenanceController(
 
         Jump(MaintenanceRows.IndexOf(Snapshot.Rows, rowId));
         Adjust(direction);
-        return new MaintenanceCommandResult(true, Snapshot.Status, null, null);
+
+        // Settings and flag writes finish on a background task, so the row status is still empty
+        // here. Say the change was queued instead of returning a blank status.
+        return new MaintenanceCommandResult(
+            true,
+            string.IsNullOrEmpty(Snapshot.Status) ? "Change queued." : Snapshot.Status,
+            null,
+            null
+        );
     }
 
     public MaintenanceCommandResult ActivateRow(string rowId, bool confirm)

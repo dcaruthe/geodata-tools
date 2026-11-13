@@ -168,7 +168,8 @@ public sealed class GeoToolsTools(GeoToolsFacade facade)
 
     [McpServerTool(Name = "settings", ReadOnly = true)]
     [Description("Current display levels, extract levels, simplify tolerance, and feature flags.")]
-    public SettingsViewDto Settings() => facade.GetSettings();
+    public Task<SettingsViewDto> SettingsAsync(CancellationToken cancellationToken) =>
+        facade.GetSettingsAsync(cancellationToken);
 
     [McpServerTool(Name = "update_settings")]
     [Description(

@@ -134,6 +134,26 @@ public sealed class GeoToolsFacade(
     public Task<CommandResultDto> ResetSettingsAsync(CancellationToken cancellationToken) =>
         link.ResetSettingsAsync(cancellationToken);
 
+    public async Task<SettingsViewDto> GetSettingsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var live = await link.GetSettingsAsync(cancellationToken);
+            return new SettingsViewDto(
+                live.DisplayLevels,
+                live.ExtractLevels,
+                live.Tolerance,
+                live.Flags.Select(flag => new FlagDto(flag.Key, flag.Value)).ToArray()
+            );
+        }
+        catch (LinkUnavailableException)
+        {
+            return GetSettings();
+        }
+    }
+
+    // The local store is a snapshot from API startup. It is the fallback when no launcher is
+    // running, because the launcher is the only writer.
     public SettingsViewDto GetSettings() =>
         new(
             settings.Map.AdminLevels.ToArray(),

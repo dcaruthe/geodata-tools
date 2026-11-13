@@ -121,7 +121,9 @@ public static class RestEndpoints
             )
             .WithSummary("Runs a pipeline action by name.");
 
-        api.MapGet("/settings", (GeoToolsFacade facade) => facade.GetSettings())
+        api.MapGet("/settings", (GeoToolsFacade facade, CancellationToken token) =>
+                facade.GetSettingsAsync(token)
+            )
             .WithSummary("Runtime settings and feature flags.");
 
         api.MapPut(
