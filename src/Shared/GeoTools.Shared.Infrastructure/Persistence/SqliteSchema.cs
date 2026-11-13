@@ -4,7 +4,7 @@ namespace GeoTools.Shared.Infrastructure.Persistence;
 
 internal static class SqliteSchema
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     private static readonly string[][] Migrations =
     [
@@ -111,6 +111,57 @@ internal static class SqliteSchema
                 );
                 """,
         ],
+        [
+            """
+                CREATE TABLE IF NOT EXISTS Regions (
+                    Id TEXT NOT NULL CONSTRAINT PK_Regions PRIMARY KEY,
+                    SourceKey TEXT NOT NULL,
+                    Region TEXT NOT NULL,
+                    OsmId TEXT NOT NULL,
+                    Name TEXT NULL,
+                    BorderType TEXT NULL,
+                    AdminLevel INTEGER NOT NULL,
+                    ParentId TEXT NULL,
+                    ParentResolved INTEGER NOT NULL DEFAULT 0,
+                    MinLongitude REAL NOT NULL,
+                    MinLatitude REAL NOT NULL,
+                    MaxLongitude REAL NOT NULL,
+                    MaxLatitude REAL NOT NULL,
+                    Area REAL NOT NULL,
+                    PointCount INTEGER NOT NULL,
+                    Blob BLOB NOT NULL,
+                    CreatedAt INTEGER NOT NULL
+                );
+                """,
+            "CREATE INDEX IF NOT EXISTS IX_Regions_Level ON Regions (AdminLevel);",
+            "CREATE INDEX IF NOT EXISTS IX_Regions_Parent ON Regions (ParentId, AdminLevel);",
+            "CREATE INDEX IF NOT EXISTS IX_Regions_SourceKey ON Regions (SourceKey);",
+            """
+                CREATE INDEX IF NOT EXISTS IX_Regions_Bounds
+                ON Regions (AdminLevel, MinLongitude, MaxLongitude, MinLatitude, MaxLatitude);
+                """,
+            """
+                CREATE TABLE IF NOT EXISTS BorderLines (
+                    Id TEXT NOT NULL CONSTRAINT PK_BorderLines PRIMARY KEY,
+                    SourceKey TEXT NOT NULL,
+                    Region TEXT NOT NULL,
+                    AdminLevel INTEGER NOT NULL,
+                    MinLongitude REAL NOT NULL,
+                    MinLatitude REAL NOT NULL,
+                    MaxLongitude REAL NOT NULL,
+                    MaxLatitude REAL NOT NULL,
+                    PointCount INTEGER NOT NULL,
+                    Blob BLOB NOT NULL,
+                    CreatedAt INTEGER NOT NULL
+                );
+                """,
+            "CREATE INDEX IF NOT EXISTS IX_BorderLines_Level ON BorderLines (AdminLevel);",
+            "CREATE INDEX IF NOT EXISTS IX_BorderLines_SourceKey ON BorderLines (SourceKey);",
+            """
+                CREATE INDEX IF NOT EXISTS IX_BorderLines_Bounds
+                ON BorderLines (AdminLevel, MinLongitude, MaxLongitude, MinLatitude, MaxLatitude);
+                """,
+        ],
     ];
 
     public static async Task InitializeAsync(
@@ -164,4 +215,7 @@ internal static class SqliteSchema
         var value = await command.ExecuteScalarAsync(cancellationToken);
         return Convert.ToInt32(value);
     }
+
+    // Exposed for the schema upgrade test, which builds a version-one database and migrates it.
+    internal static IReadOnlyList<string> Statements(int version) => Migrations[version];
 }

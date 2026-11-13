@@ -1,6 +1,7 @@
 #pragma warning disable CA1416 // The unreadable-file proof uses Unix modes on Linux.
 using FluentAssertions;
 using GeoTools.Shared.Application.Options;
+using GeoTools.Shared.Infrastructure.Geodata;
 using GeoTools.Shared.Infrastructure.Geospatial;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -103,7 +104,7 @@ public sealed class CachedBorderGeometryLoaderTests
             GeoJsonSeqParserTests.Write(
                 Path.Combine(borders, "b-boundaries.geojsonseq"),
                 GeoJsonSeqParserTests.Feature(
-                    """{"@id":"relation/1","admin_level":2}""",
+                    """{"@id":"relation/2","admin_level":2}""",
                     """{"type":"Polygon","coordinates":[[[10,10],[20,10],[20,20],[10,10]]]}"""
                 ),
                 GeoJsonSeqParserTests.Feature(
@@ -119,11 +120,11 @@ public sealed class CachedBorderGeometryLoaderTests
 
             first.ParsedFiles.Should().Be(2);
             first.CacheHits.Should().Be(0);
-            first.Geometry.Polylines.Should().HaveCount(2);
+            first.Geometry.Polylines.Should().HaveCount(3);
             first.AvailableLevels.Should().Equal(2, 4);
             second.ParsedFiles.Should().Be(0);
             second.CacheHits.Should().Be(2);
-            second.Geometry.Polylines.Should().HaveCount(2);
+            second.Geometry.Polylines.Should().HaveCount(3);
             second.Fingerprint.Should().Be(first.Fingerprint);
         }
         finally
@@ -293,6 +294,112 @@ public sealed class CachedBorderGeometryLoaderTests
         }
     }
 
+    [Fact]
+    public async Task A_cold_load_writes_region_and_line_index_rows()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var root = Directory.CreateTempSubdirectory("geotools-index-cold-");
+        try
+        {
+            var borders = Directory
+                .CreateDirectory(Path.Combine(root.FullName, "borders"))
+                .FullName;
+            GeoJsonSeqParserTests.Write(
+                Path.Combine(borders, "a-boundaries.geojsonseq"),
+                GeoJsonSeqParserTests.Feature(
+                    """{"@id":"relation/1","admin_level":2,"name":"Alpha"}""",
+                    """{"type":"Polygon","coordinates":[[[10,10],[20,10],[20,20],[10,10]]]}"""
+                ),
+                GeoJsonSeqParserTests.Feature(
+                    """{"admin_level":4}""",
+                    """{"type":"LineString","coordinates":[[0,0],[1,1]]}"""
+                )
+            );
+
+            var loader = CreateLoader(database, new TestSettings(), root.FullName);
+            await loader.LoadAsync();
+
+            var stats = await CreateStore(database).GetStatsAsync();
+            stats.RegionCount.Should().Be(1);
+            stats.LineCount.Should().Be(1);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task A_warm_load_leaves_the_index_unchanged()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var root = Directory.CreateTempSubdirectory("geotools-index-warm-");
+        try
+        {
+            var borders = Directory
+                .CreateDirectory(Path.Combine(root.FullName, "borders"))
+                .FullName;
+            GeoJsonSeqParserTests.Write(
+                Path.Combine(borders, "a-boundaries.geojsonseq"),
+                GeoJsonSeqParserTests.Feature(
+                    """{"@id":"relation/1","admin_level":2}""",
+                    """{"type":"Polygon","coordinates":[[[10,10],[20,10],[20,20],[10,10]]]}"""
+                )
+            );
+
+            var loader = CreateLoader(database, new TestSettings(), root.FullName);
+            await loader.LoadAsync();
+            var before = await CreateStore(database).GetStatsAsync();
+
+            var second = await loader.LoadAsync();
+            var after = await CreateStore(database).GetStatsAsync();
+
+            second.ParsedFiles.Should().Be(0);
+            after.RegionCount.Should().Be(before.RegionCount);
+            after.LineCount.Should().Be(before.LineCount);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task A_warm_cache_with_an_empty_index_backfills_the_index()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var root = Directory.CreateTempSubdirectory("geotools-index-backfill-");
+        try
+        {
+            var borders = Directory
+                .CreateDirectory(Path.Combine(root.FullName, "borders"))
+                .FullName;
+            GeoJsonSeqParserTests.Write(
+                Path.Combine(borders, "a-boundaries.geojsonseq"),
+                GeoJsonSeqParserTests.Feature(
+                    """{"@id":"relation/1","admin_level":2}""",
+                    """{"type":"Polygon","coordinates":[[[10,10],[20,10],[20,20],[10,10]]]}"""
+                )
+            );
+
+            var loader = CreateLoader(database, new TestSettings(), root.FullName);
+            await loader.LoadAsync();
+
+            var store = CreateStore(database);
+            await store.ClearAsync();
+
+            var second = await loader.LoadAsync();
+            var stats = await store.GetStatsAsync();
+
+            second.ParsedFiles.Should().Be(0);
+            stats.RegionCount.Should().Be(1);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
     private sealed class Collector<T>(Action<T> report) : IProgress<T>
     {
         public void Report(T value) => report(value);
@@ -315,7 +422,24 @@ public sealed class CachedBorderGeometryLoaderTests
                 }
             ),
             TimeProvider.System,
+            CreateIndex(database),
             NullLogger<CachedBorderGeometryLoader>.Instance
+        );
+
+    private static RegionIndexBuilder CreateIndex(TestDatabase database)
+    {
+        var store = CreateStore(database);
+        return new RegionIndexBuilder(store, store, NullLogger<RegionIndexBuilder>.Instance);
+    }
+
+    private static GeoTools.Shared.Infrastructure.State.SqliteRegionIndex CreateStore(
+        TestDatabase database
+    ) =>
+        new(
+            database.Factory,
+            Options.Create(new StorageOptions { DatabasePath = database.Path }),
+            TimeProvider.System,
+            NullLogger<GeoTools.Shared.Infrastructure.State.SqliteRegionIndex>.Instance
         );
 }
 #pragma warning restore CA1416

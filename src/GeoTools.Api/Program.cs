@@ -8,12 +8,14 @@ using GeoTools.Shared.Application.Link;
 using GeoTools.Shared.Infrastructure;
 using GeoTools.Shared.Infrastructure.Geospatial;
 using GeoTools.Shared.Infrastructure.Link;
+using GeoTools.Shared.Infrastructure.State;
 using Microsoft.AspNetCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.SetupInfrastructureDataLayer();
 builder.Services.AddReadOnlyGeometryCache();
+builder.Services.AddReadOnlyRegionIndexWriter();
 builder.Services.AddSingleton<ILauncherLink, LauncherLinkClient>();
 builder.Services.AddSingleton<GeodataQueryService>();
 builder.Services.AddSingleton<GeoToolsFacade>();

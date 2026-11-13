@@ -8,7 +8,10 @@ namespace GeoTools.Shared.Infrastructure.Geospatial;
 internal sealed record ParsedFeature(
     int AdminLevel,
     string? DedupeId,
-    IReadOnlyList<GeoPolyline> Polylines
+    string? Name,
+    string? BorderType,
+    IReadOnlyList<GeoPolyline> Polylines,
+    IReadOnlyList<GeoRing> Rings
 );
 
 internal sealed record ParsedBorderFile(
@@ -54,7 +57,10 @@ internal static class GeoJsonSeqParser
         if (geometryType is "Polygon" or "MultiPolygon" && TryReadId(properties, out var id))
             dedupeId = id;
 
-        var polylines = ReadGeometry(
+        var name = TryReadString(properties, "name");
+        var borderType = TryReadString(properties, "border_type");
+
+        var (polylines, rings) = ReadGeometry(
             geometry,
             geometryType,
             adminLevel,
@@ -62,7 +68,7 @@ internal static class GeoJsonSeqParser
             ref skippedGeometry
         );
 
-        feature = new ParsedFeature(adminLevel, dedupeId, polylines);
+        feature = new ParsedFeature(adminLevel, dedupeId, name, borderType, polylines, rings);
         return true;
     }
 
@@ -117,7 +123,7 @@ internal static class GeoJsonSeqParser
         );
     }
 
-    private static List<GeoPolyline> ReadGeometry(
+    private static (List<GeoPolyline> Polylines, List<GeoRing> Rings) ReadGeometry(
         JsonElement geometry,
         string geometryType,
         int adminLevel,
@@ -126,13 +132,14 @@ internal static class GeoJsonSeqParser
     )
     {
         var polylines = new List<GeoPolyline>();
+        var rings = new List<GeoRing>();
         if (!geometry.TryGetProperty("coordinates", out var coordinates))
-            return polylines;
+            return (polylines, rings);
 
         if (coordinates.ValueKind != JsonValueKind.Array)
         {
             skippedGeometry++;
-            return polylines;
+            return (polylines, rings);
         }
 
         switch (geometryType)
@@ -145,6 +152,7 @@ internal static class GeoJsonSeqParser
                         adminLevel,
                         tolerance,
                         polylines,
+                        rings,
                         ref skippedGeometry
                     );
                 break;
@@ -157,6 +165,7 @@ internal static class GeoJsonSeqParser
                         adminLevel,
                         tolerance,
                         polylines,
+                        rings,
                         ref skippedGeometry
                     );
                 break;
@@ -167,6 +176,7 @@ internal static class GeoJsonSeqParser
                     adminLevel,
                     tolerance,
                     polylines,
+                    rings,
                     ref skippedGeometry
                 );
                 break;
@@ -178,12 +188,13 @@ internal static class GeoJsonSeqParser
                         adminLevel,
                         tolerance,
                         polylines,
+                        rings,
                         ref skippedGeometry
                     );
                 break;
         }
 
-        return polylines;
+        return (polylines, rings);
     }
 
     private static void AddPolyline(
@@ -192,6 +203,7 @@ internal static class GeoJsonSeqParser
         int adminLevel,
         double tolerance,
         List<GeoPolyline> polylines,
+        List<GeoRing> rings,
         ref int skippedGeometry
     )
     {
@@ -224,6 +236,8 @@ internal static class GeoJsonSeqParser
             return;
 
         polylines.Add(new GeoPolyline(simplified, closed, adminLevel));
+        if (closed)
+            rings.Add(new GeoRing(simplified));
     }
 
     private static bool TryReadPoint(JsonElement coordinate, out GeoPoint point)
@@ -325,5 +339,17 @@ internal static class GeoJsonSeqParser
                 ? element.GetString() ?? string.Empty
                 : element.GetRawText();
         return id.Length > 0;
+    }
+
+    private static string? TryReadString(JsonElement properties, string name)
+    {
+        if (
+            properties.ValueKind != JsonValueKind.Object
+            || !properties.TryGetProperty(name, out var element)
+            || element.ValueKind != JsonValueKind.String
+        )
+            return null;
+
+        return element.GetString();
     }
 }

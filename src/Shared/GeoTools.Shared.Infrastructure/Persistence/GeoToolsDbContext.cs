@@ -23,6 +23,10 @@ internal sealed class GeoToolsDbContext(DbContextOptions<GeoToolsDbContext> opti
 
     public DbSet<HandledRequestRow> HandledRequests => Set<HandledRequestRow>();
 
+    public DbSet<RegionRow> Regions => Set<RegionRow>();
+
+    public DbSet<BorderLineRow> BorderLines => Set<BorderLineRow>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<MessageRow>(entity =>
@@ -89,6 +93,39 @@ internal sealed class GeoToolsDbContext(DbContextOptions<GeoToolsDbContext> opti
         {
             entity.ToTable("HandledRequests");
             entity.HasKey(row => row.RequestId);
+        });
+
+        modelBuilder.Entity<RegionRow>(entity =>
+        {
+            entity.ToTable("Regions");
+            entity.HasKey(row => row.Id);
+            entity.HasIndex(row => row.AdminLevel);
+            entity.HasIndex(row => new { row.ParentId, row.AdminLevel });
+            entity.HasIndex(row => row.SourceKey);
+            entity.HasIndex(row => new
+            {
+                row.AdminLevel,
+                row.MinLongitude,
+                row.MaxLongitude,
+                row.MinLatitude,
+                row.MaxLatitude,
+            });
+        });
+
+        modelBuilder.Entity<BorderLineRow>(entity =>
+        {
+            entity.ToTable("BorderLines");
+            entity.HasKey(row => row.Id);
+            entity.HasIndex(row => row.AdminLevel);
+            entity.HasIndex(row => row.SourceKey);
+            entity.HasIndex(row => new
+            {
+                row.AdminLevel,
+                row.MinLongitude,
+                row.MaxLongitude,
+                row.MinLatitude,
+                row.MaxLatitude,
+            });
         });
     }
 }
