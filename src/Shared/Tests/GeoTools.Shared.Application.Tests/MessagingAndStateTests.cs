@@ -225,7 +225,7 @@ public sealed class StateStoreTests
 
         store.Set(BorderGeometry.Empty, [2]);
         store.Set(
-            new BorderGeometry(
+            BorderGeometry.FromGeo(
                 [new GeoPolyline([new GeoPoint(0, 0), new GeoPoint(1, 1)], false, 2)],
                 GeoBounds.World
             ),

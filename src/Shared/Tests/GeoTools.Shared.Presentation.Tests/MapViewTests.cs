@@ -226,7 +226,10 @@ public sealed class MapViewTests
             Ring(4, 20, 20, 40, 40),
         };
 
-        return new BorderGeometry(polylines, GeoBounds.FromPolylines(polylines, GeoBounds.World));
+        return BorderGeometry.FromGeo(
+            polylines,
+            GeoBounds.FromPolylines(polylines, GeoBounds.World)
+        );
     }
 
     private static GeoPolyline Ring(

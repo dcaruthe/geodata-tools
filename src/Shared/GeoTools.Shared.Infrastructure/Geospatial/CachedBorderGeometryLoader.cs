@@ -173,7 +173,7 @@ internal sealed class CachedBorderGeometryLoader(
             }
         }
 
-        var geometry = new BorderGeometry(
+        var geometry = BorderGeometry.FromGeo(
             polylines,
             GeoBounds.FromPolylines(polylines, GeoBounds.World)
         );

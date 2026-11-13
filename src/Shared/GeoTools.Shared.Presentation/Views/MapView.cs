@@ -55,7 +55,12 @@ internal sealed class MapView(
 
         var stopwatch = Stopwatch.StartNew();
         var adminLevels = Normalize(settings.Map.AdminLevels);
-        var scene = ComposeScene(size, adminLevels, grid, crosshair);
+        var (scene, visiblePolylines, totalPolylines) = ComposeScene(
+            size,
+            adminLevels,
+            grid,
+            crosshair
+        );
         _cachedScene = scene;
         _cachedSize = size;
         _cachedGeometryVersion = geometryVersion;
@@ -64,44 +69,56 @@ internal sealed class MapView(
         _cachedCrosshair = crosshair;
 
         logger.LogInformation(
-            "Composed map at {Width}x{Height} with admin levels {AdminLevels}: {ShapeCount} shapes in {ElapsedMilliseconds} ms",
+            "Composed map at {Width}x{Height} with admin levels {AdminLevels}: {ShapeCount} shapes, {VisiblePolylineCount}/{PolylineCount} polylines visible in {ElapsedMilliseconds} ms",
             size.Width,
             size.Height,
             string.Join(",", adminLevels),
             scene.Shapes.Count,
+            visiblePolylines,
+            totalPolylines,
             stopwatch.ElapsedMilliseconds
         );
 
         return scene;
     }
 
-    private SceneDto ComposeScene(ViewSize size, int[] adminLevels, bool grid, bool crosshair)
+    private (SceneDto Scene, int VisiblePolylines, int TotalPolylines) ComposeScene(
+        ViewSize size,
+        int[] adminLevels,
+        bool grid,
+        bool crosshair
+    )
     {
         var composition = new ViewComposition(size, Color.Black);
         if (grid)
             Grid.Compose(composition);
-        ComposeBorders(composition, size, adminLevels);
+        var (visiblePolylines, totalPolylines) = ComposeBorders(composition, size, adminLevels);
         if (crosshair)
             Crosshair.Compose(composition);
         KeyHint.Compose(composition);
-        return composition.Build();
+        return (composition.Build(), visiblePolylines, totalPolylines);
     }
 
-    private void ComposeBorders(ViewComposition composition, ViewSize size, int[] adminLevels)
+    private (int VisiblePolylines, int TotalPolylines) ComposeBorders(
+        ViewComposition composition,
+        ViewSize size,
+        int[] adminLevels
+    )
     {
         var borders = geometryStore.Geometry;
         var available = geometryStore.AvailableAdminLevels;
+        var totalPolylines = borders.WorldPolylines.Count;
 
         if (borders.Polylines.Count == 0)
         {
             AddMessage(composition, EmptyMessage());
-            return;
+            return (0, totalPolylines);
         }
 
         if (adminLevels.Length == 0)
         {
             AddMessage(composition, "No admin levels selected. Change them in Maintenance (2).");
-            return;
+            return (0, totalPolylines);
         }
 
         if (!adminLevels.Any(available.Contains))
@@ -110,16 +127,17 @@ internal sealed class MapView(
                 composition,
                 $"No borders at admin levels {string.Join(",", adminLevels)}. Extracted: {string.Join(",", available)}."
             );
-            return;
+            return (0, totalPolylines);
         }
 
-        var viewport = MapViewport.Fit(borders.Bounds, size.Width, size.Height, 24f);
+        var camera = MapCamera.Fit(borders.Bounds, size.Width, size.Height, 24f);
+        var viewport = camera.Viewport(size.Width, size.Height);
+        var visible = viewport.WorldBounds(size.Width, size.Height).Inflate(2.0 / camera.Scale);
+        var levels = adminLevels.ToHashSet();
+        var visiblePolylines = MapGeometry.CountVisible(borders.WorldPolylines, levels, visible);
+
         foreach (
-            var polyline in MapGeometry.Project(
-                borders.Polylines,
-                adminLevels.ToHashSet(),
-                viewport
-            )
+            var polyline in MapGeometry.Project(borders.WorldPolylines, levels, viewport, visible)
         )
         {
             if (polyline.Closed)
@@ -127,6 +145,8 @@ internal sealed class MapView(
             else
                 composition.Add(new PolylineDto(polyline.Points, BorderColor, 1));
         }
+
+        return (visiblePolylines, totalPolylines);
     }
 
     private string EmptyMessage()
