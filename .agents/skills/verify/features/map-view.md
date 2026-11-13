@@ -32,7 +32,7 @@ Preconditions:
 - **Switch back.** Run `keys 2`, wait for `Switched view Map -> Maintenance`, then `keys 1` and wait for `Switched view Maintenance -> Map`. Run `shot map-again`; it matches the first capture.
 - **No border data.** Start with `VERIFY_GEODATA_ROOT` pointing at an empty directory and `VERIFY_NO_PULL=1`. The run fails; send `keys 1`. The screen reads `No border data. <error> Press 2 for maintenance.` The app stays interactive.
 - **No levels and missing levels.** In Maintenance, cycle `Display levels` to `none` and press `1`. The screen reads `No admin levels selected. Change them in Maintenance (2).` Start with `VERIFY_ADMIN_LEVEL=6` on a fresh database; the screen reads `No borders at admin levels 6. Extracted: 2,4.`
-- **Early map.** `1` and `Tab` reach the Map view before the automatic transition. With `VERIFY_RUN_ON_STARTUP=0` that is the only route; the screen shows `Loading border data.` until the first load runs.
+- **Early map.** `1` and `Tab` reach the Map view before the automatic transition. With `VERIFY_RUN_ON_STARTUP=0` on a fresh database no run starts, so the screen shows `No border data. Press 2 for maintenance and run Rebuild borders.` The `Loading border data.` text needs a run in the Running phase, which `VERIFY_RUN_ON_STARTUP=0` does not produce.
 
 ## Gotchas
 

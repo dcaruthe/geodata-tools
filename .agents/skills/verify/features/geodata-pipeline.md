@@ -7,7 +7,7 @@ The runtime owns the pull, extraction, and geometry cache. The shell scripts are
 - `pipeline-adopt` records current PBF and border files as artifacts instead of rebuilding them.
 - `pipeline-extract` runs osmium, filters the requested levels, writes the `.levels` sidecar, and caches the geometry.
 - `pipeline-download` downloads a missing or forced PBF with resume and conditional GET.
-- `pipeline-cache` reads the parsed geometry from SQLite and skips osmium when the cache is current.
+- `pipeline-cache` reads the parsed geometry from SQLite and skips re-parsing. Osmium is skipped by the artifact and modification-time checks in the planner, not by the geometry cache.
 - `pipeline-skip` leaves current outputs untouched on the next run.
 - `pipeline-failure` surfaces a failed stage on the loading screen and in Maintenance.
 - `pipeline-headless` exposes the same pipeline through `--geodata`.

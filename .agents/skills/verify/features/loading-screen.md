@@ -33,7 +33,7 @@ Preconditions:
 ## Gotchas
 
 - The spinner animates every frame; a screenshot proves it exists, not that it moved.
-- The progress fraction is the weighted mean of the planned steps. During the load step it counts border files; the 250 ms throttle moves the bar in chunks.
+- The progress fraction is the equal-weight mean of the planned steps, not a byte-weighted one. During the load step it counts border files; the 250 ms throttle moves the bar in chunks.
 - A failed or cancelled run does not switch to the map. A succeeded empty run does. Press `2` to reach Maintenance and retry.
 - The progress bar counts border files. A cache hit for all files jumps to 100% in under a second.
 - The verify database is fresh per run by default, so every `start` pays the parse. Set `VERIFY_DB` to reuse one.

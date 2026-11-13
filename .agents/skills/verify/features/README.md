@@ -33,3 +33,4 @@ This directory is the maintained source for verifying the user-facing behavior o
 - [Maintenance view](./maintenance-view.md) covers state, runtime settings, feature flags, artifact status, actions, confirmations, cancel, and reset.
 - [Admin level configuration](./admin-level-config.md) covers display levels at runtime, extraction levels, the empty selection, and the missing-level message.
 - [Geodata pipeline](./geodata-pipeline.md) covers adoption, download, extraction, the geometry cache, skip paths, failure, and the headless CLI.
+- [API and MCP](./api-and-mcp.md) covers REST, Swagger, GraphQL, the MCP tools, the screenshot, the launcher link, key rotation, and the launcher-down state.

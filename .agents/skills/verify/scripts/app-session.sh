@@ -317,6 +317,14 @@ api_stop() {
   echo "api stopped"
 }
 
+app_stop() {
+  load_session
+  if is_alive "$APP_PID"; then
+    kill_pid "$APP_PID"
+  fi
+  echo "app stopped; xvfb and api left running"
+}
+
 find_port() {
   local port=5390
   while curl -sS --max-time 0.3 "http://127.0.0.1:$port/health" >/dev/null 2>&1; do
@@ -365,6 +373,7 @@ usage: $0 <command>
   start      start Xvfb and the app, then wait for the ready log lines
   api-start  start the API against this session's database and link socket
   api-stop   stop the API this session started
+  app-stop   stop only the window, leaving Xvfb and the API running
   keys ...   send keys to the app window (1, 2, Tab, shift+Tab, Escape)
   shot ...   capture the root window to the run directory
   wait ...   wait for a log pattern, then report it
@@ -392,6 +401,7 @@ case "$command" in
   start) start ;;
   api-start) api_start ;;
   api-stop) api_stop ;;
+  app-stop) app_stop ;;
   keys)
     shift
     keys "$@"
