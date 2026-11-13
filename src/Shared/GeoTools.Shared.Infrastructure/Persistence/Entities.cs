@@ -131,3 +131,10 @@ internal sealed class BorderLineRow
     public byte[] Blob { get; set; } = [];
     public long CreatedAt { get; set; }
 }
+
+internal sealed class RegionResolutionRow
+{
+    public string RegionId { get; set; } = string.Empty;
+    public int ChildLevel { get; set; }
+    public long ResolvedAt { get; set; }
+}

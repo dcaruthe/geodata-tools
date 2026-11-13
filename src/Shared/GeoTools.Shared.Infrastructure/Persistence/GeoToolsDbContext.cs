@@ -27,6 +27,8 @@ internal sealed class GeoToolsDbContext(DbContextOptions<GeoToolsDbContext> opti
 
     public DbSet<BorderLineRow> BorderLines => Set<BorderLineRow>();
 
+    public DbSet<RegionResolutionRow> RegionResolutions => Set<RegionResolutionRow>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<MessageRow>(entity =>
@@ -126,6 +128,12 @@ internal sealed class GeoToolsDbContext(DbContextOptions<GeoToolsDbContext> opti
                 row.MinLatitude,
                 row.MaxLatitude,
             });
+        });
+
+        modelBuilder.Entity<RegionResolutionRow>(entity =>
+        {
+            entity.ToTable("RegionResolutions");
+            entity.HasKey(row => new { row.RegionId, row.ChildLevel });
         });
     }
 }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using GeoTools.Shared.Application.Geospatial;
 using GeoTools.Shared.Application.Options;
 using GeoTools.Shared.Application.State;
 using GeoTools.Shared.Application.Storage;
@@ -176,6 +177,68 @@ internal sealed class SqliteRegionIndex(
         return new RegionIndexStats(regionCount, lineCount, levels, bounds, DatabaseBytes());
     }
 
+    public async Task<IReadOnlyList<RegionSummary>> FindContainingAsync(
+        GeoPoint point,
+        IReadOnlyList<int> levels,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        var candidates = await context
+            .Regions.AsNoTracking()
+            .Where(region =>
+                levels.Contains(region.AdminLevel)
+                && region.MinLongitude <= point.Longitude
+                && region.MaxLongitude >= point.Longitude
+                && region.MinLatitude <= point.Latitude
+                && region.MaxLatitude >= point.Latitude
+            )
+            .ToListAsync(cancellationToken);
+
+        var matches = new List<(RegionSummary Summary, bool Territorial)>(candidates.Count);
+        foreach (var candidate in candidates)
+        {
+            var rings = TryDecode(candidate.Blob, candidate.Id);
+            if (rings is null || !RegionGeometry.Contains(rings, point))
+                continue;
+
+            matches.Add((ToSummary(candidate), IsTerritorial(candidate.BorderType)));
+        }
+
+        return RegionGeometry.Rank(matches);
+    }
+
+    public async Task<IReadOnlyList<RegionSummary>> GetChildrenAsync(
+        string parentId,
+        int childLevel,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        var rows = await context
+            .Regions.AsNoTracking()
+            .Where(region => region.ParentId == parentId && region.AdminLevel == childLevel)
+            .OrderBy(region => region.Area)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(ToSummary).ToArray();
+    }
+
+    public async Task<bool> IsResolvedAsync(
+        string parentId,
+        int childLevel,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        return await context
+            .RegionResolutions.AsNoTracking()
+            .AnyAsync(
+                row => row.RegionId == parentId && row.ChildLevel == childLevel,
+                cancellationToken
+            );
+    }
+
     public async Task WriteSourceAsync(
         string region,
         string sourceKey,
@@ -198,6 +261,12 @@ internal sealed class SqliteRegionIndex(
         await context
             .BorderLines.Where(row => row.Region == region)
             .ExecuteDeleteAsync(cancellationToken);
+
+        // A changed border file can add or remove parents and children anywhere in the hierarchy,
+        // not just inside this region, so drop every resolved parent link and resolution marker.
+        // Clearing ~5k rows is cheaper than trusting a link that now dangles, and the next focus
+        // query recomputes them lazily.
+        await ResetHierarchyAsync(context, cancellationToken);
 
         var createdAt = StoreMappings.ToUnixMilliseconds(clock.GetUtcNow());
         var regionRows = regions.Select(row => ToRegionRow(row, sourceKey, createdAt)).ToArray();
@@ -225,6 +294,10 @@ internal sealed class SqliteRegionIndex(
     )
     {
         await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            cancellationToken
+        );
+
         var removed = await context
             .Regions.Where(row => !sourceKeys.Contains(row.SourceKey))
             .ExecuteDeleteAsync(cancellationToken);
@@ -232,6 +305,11 @@ internal sealed class SqliteRegionIndex(
             .BorderLines.Where(row => !sourceKeys.Contains(row.SourceKey))
             .ExecuteDeleteAsync(cancellationToken);
 
+        // A stale source can be the file that owned a parent or a child, so any surviving
+        // parent link or resolution marker may now dangle. Recompute the hierarchy from scratch.
+        await ResetHierarchyAsync(context, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
         logger.LogInformation("Removed {Count} index rows from stale sources.", removed);
     }
 
@@ -240,6 +318,83 @@ internal sealed class SqliteRegionIndex(
         await using var context = await factory.CreateDbContextAsync(cancellationToken);
         await context.Regions.ExecuteDeleteAsync(cancellationToken);
         await context.BorderLines.ExecuteDeleteAsync(cancellationToken);
+        await context.RegionResolutions.ExecuteDeleteAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<RegionSummary>> ResolveChildrenAsync(
+        string parentId,
+        int childLevel,
+        CancellationToken cancellationToken = default
+    )
+    {
+        // The resolution marker is the idempotency guarantee: once this pair has been resolved,
+        // answer from the persisted links instead of recomputing containment.
+        if (await IsResolvedAsync(parentId, childLevel, cancellationToken))
+            return await GetChildrenAsync(parentId, childLevel, cancellationToken);
+
+        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            cancellationToken
+        );
+
+        // A missing row or a corrupt blob (which GetRegionAsync would report as null) resolves
+        // to an empty, persisted result so the caller never retries them.
+        var parent = await context.Regions.FirstOrDefaultAsync(
+            region => region.Id == parentId,
+            cancellationToken
+        );
+        var parentRings = parent is null ? null : TryDecode(parent.Blob, parent.Id);
+        if (parent is null || parentRings is null)
+        {
+            context.RegionResolutions.Add(Resolution(parentId, childLevel));
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return [];
+        }
+
+        var candidates = await context
+            .Regions.Where(region =>
+                region.AdminLevel == childLevel
+                && region.Id != parentId
+                && region.MinLongitude <= parent.MaxLongitude
+                && region.MaxLongitude >= parent.MinLongitude
+                && region.MinLatitude <= parent.MaxLatitude
+                && region.MaxLatitude >= parent.MinLatitude
+            )
+            .ToListAsync(cancellationToken);
+
+        var children = new List<RegionSummary>();
+        foreach (var candidate in candidates)
+        {
+            var rings = TryDecode(candidate.Blob, candidate.Id);
+            if (rings is null || !IsContainedChild(rings, parentRings))
+                continue;
+
+            if (candidate.ParentId is null)
+            {
+                candidate.ParentId = parentId;
+                children.Add(ToSummary(candidate));
+            }
+            else if (candidate.ParentId == parentId)
+            {
+                children.Add(ToSummary(candidate));
+            }
+            else
+            {
+                logger.LogDebug(
+                    "Region {Id} already has parent {Parent}; leaving it.",
+                    candidate.Id,
+                    candidate.ParentId
+                );
+            }
+        }
+
+        parent.ParentResolved = true;
+        context.RegionResolutions.Add(Resolution(parentId, childLevel));
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return children.OrderBy(child => child.Area).ToArray();
     }
 
     private IReadOnlyList<GeoPolyline>? TryDecode(byte[] blob, string id)
@@ -257,6 +412,81 @@ internal sealed class SqliteRegionIndex(
             return null;
         }
     }
+
+    // Clears every resolved parent link and resolution marker. A geodata change can add or
+    // remove parents and children anywhere, so the next focus query must recompute rather than
+    // trust a link that now dangles. Cheap at ~5k rows.
+    private static async Task ResetHierarchyAsync(
+        GeoToolsDbContext context,
+        CancellationToken cancellationToken
+    )
+    {
+        await context.Regions.ExecuteUpdateAsync(
+            updates =>
+                updates
+                    .SetProperty(region => region.ParentId, (string?)null)
+                    .SetProperty(region => region.ParentResolved, false),
+            cancellationToken
+        );
+        await context.RegionResolutions.ExecuteDeleteAsync(cancellationToken);
+    }
+
+    private static bool IsContainedChild(
+        IReadOnlyList<GeoPolyline> candidate,
+        IReadOnlyList<GeoPolyline> parent
+    )
+    {
+        var representative = RegionGeometry.RepresentativePoints(candidate);
+        if (representative.Count > 0)
+        {
+            var inside = 0;
+            foreach (var point in representative)
+            {
+                if (RegionGeometry.Contains(parent, point))
+                    inside++;
+            }
+
+            return inside * 2 >= representative.Count;
+        }
+
+        // A single-ring candidate with no sampled vertices still has a centroid to test.
+        if (candidate.Count == 1)
+            return RegionGeometry.Contains(parent, Centroid(candidate[0]));
+
+        return false;
+    }
+
+    private static GeoPoint Centroid(GeoPolyline ring)
+    {
+        var points = ring.Points;
+        var count = points.Count;
+        if (count > 1 && points[0] == points[count - 1])
+            count--;
+
+        if (count == 0)
+            return default;
+
+        var longitude = 0.0;
+        var latitude = 0.0;
+        for (var i = 0; i < count; i++)
+        {
+            longitude += points[i].Longitude;
+            latitude += points[i].Latitude;
+        }
+
+        return new GeoPoint(longitude / count, latitude / count);
+    }
+
+    private static bool IsTerritorial(string? borderType) =>
+        string.Equals(borderType, "territorial", StringComparison.Ordinal);
+
+    private RegionResolutionRow Resolution(string parentId, int childLevel) =>
+        new()
+        {
+            RegionId = parentId,
+            ChildLevel = childLevel,
+            ResolvedAt = StoreMappings.ToUnixMilliseconds(clock.GetUtcNow()),
+        };
 
     // A border relation can be extracted into two region files (a shared border), so the same
     // region id may already exist under a different source. Keep the first one and skip the rest.

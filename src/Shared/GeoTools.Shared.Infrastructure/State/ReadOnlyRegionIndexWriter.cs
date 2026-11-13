@@ -21,6 +21,12 @@ public sealed class ReadOnlyRegionIndexWriter : IRegionIndexWriter
     ) => Task.CompletedTask;
 
     public Task ClearAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task<IReadOnlyList<RegionSummary>> ResolveChildrenAsync(
+        string parentId,
+        int childLevel,
+        CancellationToken cancellationToken = default
+    ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
 }
 
 public static class ReadOnlyRegionIndexWriterExtensions

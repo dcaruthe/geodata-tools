@@ -20,6 +20,15 @@ public interface IRegionIndexWriter
     );
 
     Task ClearAsync(CancellationToken cancellationToken = default);
+
+    // Computes and persists the children of a parent at the given level on first use, then
+    // answers from the persisted result. Idempotent: a second call returns the same children
+    // without recomputing containment.
+    Task<IReadOnlyList<RegionSummary>> ResolveChildrenAsync(
+        string parentId,
+        int childLevel,
+        CancellationToken cancellationToken = default
+    );
 }
 
 public sealed record RegionWrite(

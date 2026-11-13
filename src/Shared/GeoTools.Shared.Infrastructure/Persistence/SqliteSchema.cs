@@ -4,7 +4,7 @@ namespace GeoTools.Shared.Infrastructure.Persistence;
 
 internal static class SqliteSchema
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     private static readonly string[][] Migrations =
     [
@@ -160,6 +160,16 @@ internal static class SqliteSchema
             """
                 CREATE INDEX IF NOT EXISTS IX_BorderLines_Bounds
                 ON BorderLines (AdminLevel, MinLongitude, MaxLongitude, MinLatitude, MaxLatitude);
+                """,
+        ],
+        [
+            """
+                CREATE TABLE IF NOT EXISTS RegionResolutions (
+                    RegionId TEXT NOT NULL,
+                    ChildLevel INTEGER NOT NULL,
+                    ResolvedAt INTEGER NOT NULL,
+                    CONSTRAINT PK_RegionResolutions PRIMARY KEY (RegionId, ChildLevel)
+                );
                 """,
         ],
     ];

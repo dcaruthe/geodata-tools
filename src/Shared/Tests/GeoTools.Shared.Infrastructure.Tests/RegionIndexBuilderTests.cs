@@ -192,6 +192,12 @@ public sealed class RegionIndexBuilderTests
         }
 
         public Task ClearAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<RegionSummary>> ResolveChildrenAsync(
+            string parentId,
+            int childLevel,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
     }
 
     private sealed class EmptyIndex : IRegionIndex
@@ -224,6 +230,24 @@ public sealed class RegionIndexBuilderTests
         public Task<RegionIndexStats> GetStatsAsync(
             CancellationToken cancellationToken = default
         ) => Task.FromResult(new RegionIndexStats(0, 0, [], GeoBounds.World, 0));
+
+        public Task<IReadOnlyList<RegionSummary>> FindContainingAsync(
+            GeoPoint point,
+            IReadOnlyList<int> levels,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
+
+        public Task<IReadOnlyList<RegionSummary>> GetChildrenAsync(
+            string parentId,
+            int childLevel,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
+
+        public Task<bool> IsResolvedAsync(
+            string parentId,
+            int childLevel,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(false);
     }
 
     private sealed class TrackingIndex : IRegionIndex
@@ -262,5 +286,23 @@ public sealed class RegionIndexBuilderTests
         public Task<RegionIndexStats> GetStatsAsync(
             CancellationToken cancellationToken = default
         ) => Task.FromResult(new RegionIndexStats(0, 0, [], GeoBounds.World, 0));
+
+        public Task<IReadOnlyList<RegionSummary>> FindContainingAsync(
+            GeoPoint point,
+            IReadOnlyList<int> levels,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
+
+        public Task<IReadOnlyList<RegionSummary>> GetChildrenAsync(
+            string parentId,
+            int childLevel,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
+
+        public Task<bool> IsResolvedAsync(
+            string parentId,
+            int childLevel,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(false);
     }
 }

@@ -29,6 +29,26 @@ public interface IRegionIndex
     );
 
     Task<RegionIndexStats> GetStatsAsync(CancellationToken cancellationToken = default);
+
+    // Every region whose bounds and rings contain the point, ranked so the deepest, smallest,
+    // non-territorial region comes first. Returns an empty list when nothing contains the point.
+    Task<IReadOnlyList<RegionSummary>> FindContainingAsync(
+        GeoPoint point,
+        IReadOnlyList<int> levels,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<IReadOnlyList<RegionSummary>> GetChildrenAsync(
+        string parentId,
+        int childLevel,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<bool> IsResolvedAsync(
+        string parentId,
+        int childLevel,
+        CancellationToken cancellationToken = default
+    );
 }
 
 public sealed record RegionSummary(
