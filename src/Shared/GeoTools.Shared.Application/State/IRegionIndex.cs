@@ -8,6 +8,13 @@ public interface IRegionIndex
 {
     Task<RegionDetail?> GetRegionAsync(string id, CancellationToken cancellationToken = default);
 
+    // Every region named by id, with its decoded polylines, in one query. Missing or corrupt
+    // rows are dropped rather than reported, so callers always get usable geometry.
+    Task<IReadOnlyList<RegionDetail>> GetRegionsAsync(
+        IReadOnlyList<string> ids,
+        CancellationToken cancellationToken = default
+    );
+
     Task<IReadOnlyList<RegionSummary>> ListRegionsAsync(
         int[]? levels,
         GeoBounds? bounds,

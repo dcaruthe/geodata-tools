@@ -41,6 +41,22 @@ public sealed class MapGeometryTests
     }
 
     [Fact]
+    public void Project_preserves_the_admin_level_on_each_polyline()
+    {
+        var polylines = GeometryProjector.Project([Ring(2, 0, 0, 10, 10), Ring(4, 20, 20, 30, 30)]);
+
+        var screen = MapGeometry.Project(
+            polylines,
+            new HashSet<int> { 2, 4 },
+            Viewport,
+            WorldRect.World
+        );
+
+        screen.Should().HaveCount(2);
+        screen.Select(polyline => polyline.AdminLevel).Should().BeEquivalentTo([2, 4]);
+    }
+
+    [Fact]
     public void Project_keeps_the_antimeridian_split_segments_open()
     {
         var ring = new GeoPolyline(

@@ -108,7 +108,9 @@ public sealed class MapViewTests
                 camera,
                 camera.CenterGeo,
                 camera.Viewport(size.Width, size.Height).WorldBounds(size.Width, size.Height),
-                "Focused."
+                "Focused.",
+                [],
+                []
             )
         );
         var second = view.Compose(size);
@@ -266,6 +268,103 @@ public sealed class MapViewTests
         CreateView(Borders()).Id.Should().Be(ViewId.Map);
     }
 
+    [Fact]
+    public void Compose_draws_the_focus_overlay_highlight_and_label()
+    {
+        var store = CreateStore(Borders());
+        var overlay = new FocusOverlayStore();
+        overlay.Set(
+            GeometryProjector.Project([Ring(2, -10, -10, 10, 10)]),
+            "Region A",
+            new GeoBounds(-10, -10, 10, 10)
+        );
+        var view = CreateView(store, overlay: overlay);
+
+        var scene = view.Compose(new ViewSize(800, 600));
+
+        scene
+            .Shapes.OfType<PolygonDto>()
+            .Should()
+            .Contain(polygon =>
+                polygon.Color == new Color(255, 204, 102) && polygon.Thickness == 2
+            );
+        scene.Shapes.OfType<TextDto>().Should().Contain(text => text.Text == "Region A");
+    }
+
+    [Fact]
+    public void Compose_omits_the_overlay_label_when_it_is_off_screen()
+    {
+        var store = CreateStore(Borders());
+        var overlay = new FocusOverlayStore();
+        overlay.Set(
+            GeometryProjector.Project([Ring(2, -10, -10, 10, 10)]),
+            "Region A",
+            new GeoBounds(-10, -10, 10, 10)
+        );
+        var mapState = new MapStateStore();
+        var view = CreateView(store, mapState: mapState, overlay: overlay);
+        var size = new ViewSize(800, 600);
+        var camera = new MapCamera(0.9, 0.9, 20000);
+        mapState.Set(
+            new MapViewState(
+                camera,
+                camera.CenterGeo,
+                camera.Viewport(size.Width, size.Height).WorldBounds(size.Width, size.Height),
+                string.Empty,
+                [new FocusedRegion("A", "Region A", 2, new GeoBounds(-10, -10, 10, 10))],
+                [2]
+            )
+        );
+
+        var scene = view.Compose(size);
+
+        scene.Shapes.OfType<TextDto>().Should().NotContain(text => text.Text == "Region A");
+    }
+
+    [Fact]
+    public void Compose_colors_a_revealed_level_brighter_than_the_root_levels()
+    {
+        var store = CreateStore(Borders());
+        var mapState = new MapStateStore();
+        var view = CreateView(store, mapState: mapState);
+        var size = new ViewSize(800, 600);
+        var fit = MapCamera.Fit(Borders().Bounds, size.Width, size.Height, 24f);
+        mapState.Set(
+            new MapViewState(
+                fit,
+                fit.CenterGeo,
+                fit.Viewport(size.Width, size.Height).WorldBounds(size.Width, size.Height),
+                string.Empty,
+                [new FocusedRegion("A", "Region A", 2, new GeoBounds(-10, -10, 10, 10))],
+                [2, 4]
+            )
+        );
+
+        var scene = view.Compose(size);
+
+        scene
+            .Shapes.OfType<PolygonDto>()
+            .Should()
+            .Contain(polygon => polygon.Color == new Color(140, 190, 235));
+        scene
+            .Shapes.OfType<PolygonDto>()
+            .Should()
+            .Contain(polygon => polygon.Color == new Color(200, 205, 215));
+    }
+
+    [Fact]
+    public void Compose_hint_mentions_focus_and_back()
+    {
+        var view = CreateView(Borders());
+
+        var scene = view.Compose(new ViewSize(800, 600));
+
+        scene
+            .Shapes.OfType<TextDto>()
+            .Should()
+            .Contain(text => text.Text.Contains("F focus") && text.Text.Contains("Backspace back"));
+    }
+
     private static MapView CreateView(BorderGeometry geometry) =>
         CreateView(geometry, new ProgressStore());
 
@@ -276,19 +375,32 @@ public sealed class MapViewTests
         BorderGeometryStore store,
         TestSettingsStore? settings = null,
         ProgressStore? progress = null,
-        MapStateStore? mapState = null
+        MapStateStore? mapState = null,
+        FocusOverlayStore? overlay = null
     )
     {
         settings ??= new TestSettingsStore();
         mapState ??= new MapStateStore();
+        overlay ??= new FocusOverlayStore();
+        var focus = new MapFocusService(
+            new FakeRegionIndex(),
+            new FakeRegionIndexWriter(),
+            store,
+            mapState,
+            overlay,
+            settings,
+            NullLogger<MapFocusService>.Instance
+        );
         var controller = new MapController(
             mapState,
             store,
             settings,
+            focus,
             NullLogger<MapController>.Instance
         );
         return new MapView(
             store,
+            overlay,
             mapState,
             controller,
             settings,
@@ -303,7 +415,9 @@ public sealed class MapViewTests
                 camera,
                 camera.CenterGeo,
                 camera.Viewport(size.Width, size.Height).WorldBounds(size.Width, size.Height),
-                string.Empty
+                string.Empty,
+                [],
+                []
             )
         );
 

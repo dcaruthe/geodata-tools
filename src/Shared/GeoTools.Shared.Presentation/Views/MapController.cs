@@ -9,17 +9,20 @@ internal sealed class MapController
 {
     private readonly IMapStateStore _mapState;
     private readonly IBorderGeometryStore _geometry;
+    private readonly MapFocusService _focus;
     private readonly ILogger<MapController> _logger;
 
     public MapController(
         IMapStateStore mapState,
         IBorderGeometryStore geometry,
         ISettingsStore settings,
+        MapFocusService focus,
         ILogger<MapController> logger
     )
     {
         _mapState = mapState;
         _geometry = geometry;
+        _focus = focus;
         _logger = logger;
     }
 
@@ -39,6 +42,9 @@ internal sealed class MapController
 
     public bool Handle(ViewKey key, ViewSize size)
     {
+        if (key == ViewKey.Backspace)
+            return Blur(size);
+
         switch (key)
         {
             case ViewKey.Up:
@@ -47,6 +53,7 @@ internal sealed class MapController
             case ViewKey.Right:
             case ViewKey.ZoomIn:
             case ViewKey.ZoomOut:
+            case ViewKey.Focus:
                 EnsureInitialised(size);
                 break;
             default:
@@ -61,14 +68,27 @@ internal sealed class MapController
             ViewKey.Right => Pan(PanPixels, 0, size),
             ViewKey.ZoomIn => Zoom(ZoomStep, size),
             ViewKey.ZoomOut => Zoom(1 / ZoomStep, size),
+            ViewKey.Focus => FocusAt(size),
             _ => false,
         };
+    }
+
+    public void FocusAt(GeoPoint point, ViewSize size) => _focus.FocusAt(point, size);
+
+    public void FocusRegion(string regionId, ViewSize size) => _focus.FocusRegion(regionId, size);
+
+    public bool Blur(ViewSize size) => _focus.Blur(size);
+
+    private bool FocusAt(ViewSize size)
+    {
+        _focus.FocusAt(_mapState.Current.Center, size);
+        return true;
     }
 
     internal static GeoBounds BoundsFor(BorderGeometry geometry) =>
         geometry.Polylines.Count == 0 ? GeoBounds.World : geometry.Bounds;
 
-    private bool Pan(double screenX, double screenY, ViewSize size)
+    public bool Pan(double screenX, double screenY, ViewSize size)
     {
         var bounds = BoundsFor(_geometry.Geometry);
         var camera = _mapState
@@ -79,7 +99,7 @@ internal sealed class MapController
         return true;
     }
 
-    private bool Zoom(double factor, ViewSize size)
+    public bool Zoom(double factor, ViewSize size)
     {
         var bounds = BoundsFor(_geometry.Geometry);
         var fitScale = MapCamera.Fit(bounds, size.Width, size.Height, FitPadding).Scale;
@@ -97,13 +117,16 @@ internal sealed class MapController
 
     private void Publish(MapCamera camera, ViewSize size)
     {
+        var state = _mapState.Current;
         var viewport = camera.Viewport(size.Width, size.Height);
         _mapState.Set(
             new MapViewState(
                 camera,
                 camera.CenterGeo,
                 viewport.WorldBounds(size.Width, size.Height),
-                _mapState.Current.Status
+                state.Status,
+                state.Focus,
+                state.VisibleLevels
             )
         );
     }

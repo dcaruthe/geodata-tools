@@ -43,6 +43,34 @@ internal sealed class SqliteRegionIndex(
         return new RegionDetail(ToSummary(row), polylines);
     }
 
+    public async Task<IReadOnlyList<RegionDetail>> GetRegionsAsync(
+        IReadOnlyList<string> ids,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (ids.Count == 0)
+            return [];
+
+        var lookup = ids.Distinct(StringComparer.Ordinal).ToArray();
+        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        var rows = await context
+            .Regions.AsNoTracking()
+            .Where(region => lookup.Contains(region.Id))
+            .ToListAsync(cancellationToken);
+
+        var result = new List<RegionDetail>(rows.Count);
+        foreach (var row in rows)
+        {
+            var polylines = TryDecode(row.Blob, row.Id);
+            if (polylines is null)
+                continue;
+
+            result.Add(new RegionDetail(ToSummary(row), polylines));
+        }
+
+        return result;
+    }
+
     public async Task<IReadOnlyList<RegionSummary>> ListRegionsAsync(
         int[]? levels,
         GeoBounds? bounds,

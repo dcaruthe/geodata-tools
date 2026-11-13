@@ -206,6 +206,7 @@ internal sealed class SceneWindow : GameWindow, IOpenGlContext
             Keys.Backspace => ViewKey.Backspace,
             Keys.Home => ViewKey.Home,
             Keys.End => ViewKey.End,
+            Keys.F => ViewKey.Focus,
             _ => (ViewKey?)null,
         };
 

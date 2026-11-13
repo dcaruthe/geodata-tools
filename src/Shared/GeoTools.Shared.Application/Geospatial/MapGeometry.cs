@@ -24,7 +24,7 @@ public static class MapGeometry
             if (simplified.Length < 2)
                 continue;
 
-            result.Add(new ScreenPolyline(simplified, polyline.Closed));
+            result.Add(new ScreenPolyline(simplified, polyline.Closed, polyline.AdminLevel));
         }
 
         return result;

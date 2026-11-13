@@ -14,6 +14,7 @@ public static class ConfigureServices
         services.AddSingleton<INavigationMediator>(_ => new NavigationMediator());
         services.AddSingleton<IProgressStore, ProgressStore>();
         services.AddSingleton<IBorderGeometryStore, BorderGeometryStore>();
+        services.AddSingleton<IFocusOverlayStore, FocusOverlayStore>();
         services.AddSingleton<IMapStateStore, MapStateStore>();
         return services;
     }

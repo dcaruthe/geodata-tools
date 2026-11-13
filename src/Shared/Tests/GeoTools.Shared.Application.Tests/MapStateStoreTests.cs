@@ -59,6 +59,8 @@ public sealed class MapStateStoreTests
             new MapCamera(centerX, 0.5, 100),
             new GeoPoint(0, 0),
             new WorldRect(0, 0, 1, 1),
-            string.Empty
+            string.Empty,
+            [],
+            []
         );
 }

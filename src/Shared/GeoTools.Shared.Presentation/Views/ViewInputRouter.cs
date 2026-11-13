@@ -14,6 +14,7 @@ internal enum ViewKey
     Backspace,
     Home,
     End,
+    Focus,
 }
 
 internal interface IViewInputTarget : IView

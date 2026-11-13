@@ -12,9 +12,11 @@ namespace GeoTools.Shared.Presentation.Views;
 internal sealed class RetainedMapScene
 {
     private static readonly Color BorderColor = new(200, 205, 215);
+    private static readonly Color RevealedColor = new(140, 190, 235);
 
     private readonly List<RetainedPolyline> _polylines = [];
     private HashSet<int> _levels = [];
+    private HashSet<int> _rootLevels = [];
     private long _geometryVersion;
     private long _settingsVersion;
     private bool _grid;
@@ -104,11 +106,13 @@ internal sealed class RetainedMapScene
         bool grid = true,
         bool crosshair = true,
         long geometryVersion = 0,
-        long settingsVersion = 0
+        long settingsVersion = 0,
+        IReadOnlyList<int>? rootLevels = null
     )
     {
         var viewport = camera.Viewport(size.Width, size.Height);
         var levelSet = levels.ToHashSet();
+        var rootLevelSet = (rootLevels ?? levels).ToHashSet();
 
         _polylines.Clear();
         foreach (
@@ -124,12 +128,14 @@ internal sealed class RetainedMapScene
                 new RetainedPolyline(
                     polyline.Points,
                     polyline.Closed,
+                    polyline.AdminLevel,
                     ScreenRect.FromPoints(polyline.Points)
                 )
             );
         }
 
         _levels = levelSet;
+        _rootLevels = rootLevelSet;
         _geometryVersion = geometryVersion;
         _settingsVersion = settingsVersion;
         _grid = grid;
@@ -191,8 +197,13 @@ internal sealed class RetainedMapScene
 
             shapes.Add(
                 polyline.Closed
-                    ? new PolygonDto(polyline.Points, BorderColor, 1, Filled: false)
-                    : new PolylineDto(polyline.Points, BorderColor, 1)
+                    ? new PolygonDto(
+                        polyline.Points,
+                        ColorFor(polyline.AdminLevel),
+                        1,
+                        Filled: false
+                    )
+                    : new PolylineDto(polyline.Points, ColorFor(polyline.AdminLevel), 1)
             );
         }
 
@@ -200,16 +211,25 @@ internal sealed class RetainedMapScene
         return shapes;
     }
 
+    private Color ColorFor(int adminLevel) =>
+        _rootLevels.Contains(adminLevel) ? BorderColor : RevealedColor;
+
     private static bool Contains(WorldRect outer, WorldRect inner) =>
         inner.MinX >= outer.MinX
         && inner.MaxX <= outer.MaxX
         && inner.MinY >= outer.MinY
         && inner.MaxY <= outer.MaxY;
 
-    private sealed class RetainedPolyline(Point[] points, bool closed, ScreenRect bounds)
+    private sealed class RetainedPolyline(
+        Point[] points,
+        bool closed,
+        int adminLevel,
+        ScreenRect bounds
+    )
     {
         public Point[] Points { get; } = points;
         public bool Closed { get; } = closed;
+        public int AdminLevel { get; } = adminLevel;
         public ScreenRect Bounds { get; private set; } = bounds;
 
         public void Transform(

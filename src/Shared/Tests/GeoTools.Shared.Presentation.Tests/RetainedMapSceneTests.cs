@@ -67,6 +67,51 @@ public sealed class RetainedMapSceneTests
     }
 
     [Fact]
+    public void Shapes_colors_a_revealed_level_brighter_than_the_root_levels()
+    {
+        var scene = new RetainedMapScene();
+        scene.Build(
+            Geometry(Ring(2, 0.1, 0.1, 0.2, 0.2), Ring(4, 0.6, 0.6, 0.7, 0.7)),
+            [2, 4],
+            Camera(),
+            Size,
+            WorldRect.World,
+            rootLevels: [2]
+        );
+        var camera = Camera();
+        var viewport = camera.Viewport(Size.Width, Size.Height);
+
+        var shapes = scene.Shapes(WorldRect.World, viewport);
+
+        shapes
+            .OfType<PolygonDto>()
+            .Should()
+            .Contain(polygon => polygon.Color == new Color(200, 205, 215));
+        shapes
+            .OfType<PolygonDto>()
+            .Should()
+            .Contain(polygon => polygon.Color == new Color(140, 190, 235));
+    }
+
+    [Fact]
+    public void Shapes_keeps_the_root_color_when_no_root_levels_are_supplied()
+    {
+        var scene = new RetainedMapScene();
+        scene.Build(Geometry(Ring(4, 0.6, 0.6, 0.7, 0.7)), [4], Camera(), Size, WorldRect.World);
+        var camera = Camera();
+        var viewport = camera.Viewport(Size.Width, Size.Height);
+
+        var shapes = scene.Shapes(WorldRect.World, viewport);
+
+        shapes
+            .OfType<PolygonDto>()
+            .Should()
+            .ContainSingle()
+            .Which.Color.Should()
+            .Be(new Color(200, 205, 215));
+    }
+
+    [Fact]
     public void Transform_shifts_points_by_the_expected_pixels()
     {
         var scene = Built();

@@ -208,7 +208,7 @@ public sealed class MapControllerTests
     [Fact]
     public void Handle_returns_false_and_leaves_the_state_for_unhandled_keys()
     {
-        foreach (var key in new[] { ViewKey.Enter, ViewKey.Backspace, ViewKey.Home, ViewKey.End })
+        foreach (var key in new[] { ViewKey.Enter, ViewKey.Home, ViewKey.End })
         {
             var fixture = new Fixture(Borders());
 
@@ -217,6 +217,31 @@ public sealed class MapControllerTests
             fixture.MapState.Version.Should().Be(0);
             fixture.MapState.Current.IsInitialised.Should().BeFalse();
         }
+    }
+
+    [Fact]
+    public void Focus_routes_to_the_focus_service_at_the_camera_center()
+    {
+        var fixture = new Fixture(Borders());
+        fixture.Controller.EnsureInitialised(Size);
+        GeoPoint? captured = null;
+        fixture.Index.FindContainingOverride = (point, _, _) =>
+        {
+            captured = point;
+            return Task.FromResult<IReadOnlyList<RegionSummary>>([]);
+        };
+
+        fixture.Controller.Handle(ViewKey.Focus, Size).Should().BeTrue();
+
+        captured.Should().Be(fixture.MapState.Current.Camera.CenterGeo);
+    }
+
+    [Fact]
+    public void Backspace_returns_false_when_the_focus_stack_is_empty()
+    {
+        var fixture = new Fixture(Borders());
+
+        fixture.Controller.Handle(ViewKey.Backspace, Size).Should().BeFalse();
     }
 
     private sealed class Fixture
@@ -234,10 +259,23 @@ public sealed class MapControllerTests
                     .ToArray()
             );
             MapState = new MapStateStore();
+            Overlay = new FocusOverlayStore();
+            Index = new FakeRegionIndex();
+            Writer = new FakeRegionIndexWriter();
+            Focus = new MapFocusService(
+                Index,
+                Writer,
+                Store,
+                MapState,
+                Overlay,
+                new TestSettingsStore(),
+                NullLogger<MapFocusService>.Instance
+            );
             Controller = new MapController(
                 MapState,
                 Store,
                 new TestSettingsStore(),
+                Focus,
                 NullLogger<MapController>.Instance
             );
         }
@@ -248,6 +286,14 @@ public sealed class MapControllerTests
 
         public MapStateStore MapState { get; }
 
+        public MapFocusService Focus { get; }
+
+        public FocusOverlayStore Overlay { get; }
+
+        public FakeRegionIndex Index { get; }
+
+        public FakeRegionIndexWriter Writer { get; }
+
         public MapController Controller { get; }
 
         public void SetCamera(MapCamera camera) =>
@@ -256,7 +302,9 @@ public sealed class MapControllerTests
                     camera,
                     camera.CenterGeo,
                     camera.Viewport(Size.Width, Size.Height).WorldBounds(Size.Width, Size.Height),
-                    string.Empty
+                    string.Empty,
+                    [],
+                    []
                 )
             );
 

@@ -207,6 +207,11 @@ public sealed class RegionIndexBuilderTests
             CancellationToken cancellationToken = default
         ) => Task.FromResult<RegionDetail?>(null);
 
+        public Task<IReadOnlyList<RegionDetail>> GetRegionsAsync(
+            IReadOnlyList<string> ids,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<IReadOnlyList<RegionDetail>>([]);
+
         public Task<IReadOnlyList<RegionSummary>> ListRegionsAsync(
             int[]? levels,
             GeoBounds? bounds,
@@ -258,6 +263,11 @@ public sealed class RegionIndexBuilderTests
             string id,
             CancellationToken cancellationToken = default
         ) => Task.FromResult<RegionDetail?>(null);
+
+        public Task<IReadOnlyList<RegionDetail>> GetRegionsAsync(
+            IReadOnlyList<string> ids,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<IReadOnlyList<RegionDetail>>([]);
 
         public Task<IReadOnlyList<RegionSummary>> ListRegionsAsync(
             int[]? levels,

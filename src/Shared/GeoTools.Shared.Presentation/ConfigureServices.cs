@@ -89,6 +89,7 @@ public static class ConfigureServices
         services.AddSingleton<IViewInputRouter, ViewInputRouter>();
         services.AddSingleton<ISceneRenderer, DefaultSceneRenderer>();
         services.AddSingleton<MapController>();
+        services.AddSingleton<MapFocusService>();
         services.AddSingleton<MaintenanceController>();
         services.AddSingleton<IMessageSubscription>(provider =>
             provider.GetRequiredService<MaintenanceController>()
