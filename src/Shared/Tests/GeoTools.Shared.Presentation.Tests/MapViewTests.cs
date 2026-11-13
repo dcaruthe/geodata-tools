@@ -322,6 +322,39 @@ public sealed class MapViewTests
     }
 
     [Fact]
+    public void Compose_clamps_the_focus_label_into_the_viewport()
+    {
+        var store = CreateStore(Borders());
+        var overlay = new FocusOverlayStore();
+        overlay.Set(
+            GeometryProjector.Project([Ring(2, -10, -10, 10, 10)]),
+            "Region A",
+            new GeoBounds(-10, -10, 10, 10)
+        );
+        var mapState = new MapStateStore();
+        var view = CreateView(store, mapState: mapState, overlay: overlay);
+        var size = new ViewSize(800, 600);
+        var fit = MapCamera.Fit(new GeoBounds(-10, -10, 10, 10), size.Width, size.Height, 24f);
+        var camera = fit.Pan(200, 0, size.Width, size.Height);
+        mapState.Set(
+            new MapViewState(
+                camera,
+                camera.CenterGeo,
+                camera.Viewport(size.Width, size.Height).WorldBounds(size.Width, size.Height),
+                string.Empty,
+                [new FocusedRegion("A", "Region A", 2, new GeoBounds(-10, -10, 10, 10))],
+                [2]
+            )
+        );
+
+        var scene = view.Compose(size);
+
+        var label = scene.Shapes.OfType<TextDto>().Single(text => text.Text == "Region A");
+        label.Position.X.Should().Be(0);
+        label.Position.Y.Should().Be(64);
+    }
+
+    [Fact]
     public void Compose_colors_a_revealed_level_brighter_than_the_root_levels()
     {
         var store = CreateStore(Borders());

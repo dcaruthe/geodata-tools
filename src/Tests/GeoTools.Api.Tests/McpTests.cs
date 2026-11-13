@@ -31,6 +31,12 @@ public sealed class McpTests(ApiFactory factory) : IClassFixture<ApiFactory>
                 "navigate",
                 "maintenance",
                 "borders",
+                "regions",
+                "admin_regions",
+                "admin_region",
+                "regions_at",
+                "region_children",
+                "region_index",
                 "set_window",
                 "map_state",
                 "focus_at",
@@ -98,6 +104,27 @@ public sealed class McpTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         result.IsError.Should().NotBe(true);
         result.Content.OfType<TextContentBlock>().First().Text.Should().Contain("polylineCount");
+    }
+
+    [Fact]
+    public async Task The_region_index_tool_reports_the_seeded_counts()
+    {
+        var transport = new HttpClientTransport(
+            new HttpClientTransportOptions
+            {
+                Endpoint = new Uri("http://localhost/mcp"),
+                TransportMode = HttpTransportMode.StreamableHttp,
+            },
+            factory.CreateClient()
+        );
+
+        await using var client = await McpClient.CreateAsync(transport);
+        var result = await client.CallToolAsync("region_index", new Dictionary<string, object?>());
+
+        result.IsError.Should().NotBe(true);
+        var text = result.Content.OfType<TextContentBlock>().First().Text;
+        text.Should().Contain("regionCount");
+        text.Should().Contain("\"regionCount\":2");
     }
 
     [Fact]

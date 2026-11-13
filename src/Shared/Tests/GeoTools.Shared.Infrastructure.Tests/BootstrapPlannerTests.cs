@@ -77,6 +77,19 @@ public sealed class BootstrapPlannerTests
     }
 
     [Fact]
+    public void Plan_region_index_scope_loads_without_clearing_the_cache()
+    {
+        var plan = BootstrapPlanner.Plan(
+            new BootstrapRequest("test", RebuildScope.RegionIndex),
+            [State("africa", source: true, border: true, levels: [2, 4])],
+            new Dictionary<ArtifactKey, ArtifactRecord>(),
+            [2, 4]
+        );
+
+        Keys(plan).Should().Equal("load");
+    }
+
+    [Fact]
     public void Plan_pull_scope_checks_and_extracts_every_region()
     {
         var plan = BootstrapPlanner.Plan(

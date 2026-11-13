@@ -228,6 +228,7 @@ internal sealed class WindowCommandPump(
             PipelineAction.Repull => "action:repull",
             PipelineAction.Extract => "action:extract",
             PipelineAction.Cache => "action:cache",
+            PipelineAction.Reindex => "action:reindex",
             PipelineAction.Retry => "action:retry",
             PipelineAction.Reset => "action:reset",
             _ => "action:check",

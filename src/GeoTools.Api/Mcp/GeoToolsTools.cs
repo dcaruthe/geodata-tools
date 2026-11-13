@@ -118,7 +118,7 @@ public sealed class GeoToolsTools(GeoToolsFacade facade)
 
     [McpServerTool(Name = "pipeline")]
     [Description(
-        "Runs a pipeline action: Check, Repull, Extract, Cache, Cancel, Retry, or Reset. Repull, Extract, and Reset need confirm=true."
+        "Runs a pipeline action: Check, Repull, Extract, Cache, Reindex, Cancel, Retry, or Reset. Repull, Extract, and Reset need confirm=true."
     )]
     public Task<CommandResultDto> PipelineAsync(
         [Description("The action to run.")] PipelineAction action,
@@ -140,7 +140,7 @@ public sealed class GeoToolsTools(GeoToolsFacade facade)
 
     [McpServerTool(Name = "regions", ReadOnly = true)]
     [Description(
-        "Configured regions with their artifact sizes, the extracted admin levels, and the border bounds and totals."
+        "Configured geodata download regions with their artifact sizes, the extracted admin levels, and the border bounds and totals. For administrative region queries use admin_regions."
     )]
     public Task<RegionsResponse> RegionsAsync(CancellationToken cancellationToken) =>
         facade.GetRegionsAsync(cancellationToken);
@@ -166,6 +166,64 @@ public sealed class GeoToolsTools(GeoToolsFacade facade)
             format ?? "summary",
             cancellationToken
         );
+
+    [McpServerTool(Name = "admin_regions", ReadOnly = true)]
+    [Description(
+        "Lists administrative regions from the region index by admin level, bounds, parent id, and a case-insensitive name or id substring. Distinct from regions, which reports geodata download regions."
+    )]
+    public Task<AdminRegionsResponse> AdminRegionsAsync(
+        [Description("Admin levels to include, for example [2,4].")] int[]? levels = null,
+        [Description("Western longitude of the box.")] double? minLon = null,
+        [Description("Southern latitude of the box.")] double? minLat = null,
+        [Description("Eastern longitude of the box.")] double? maxLon = null,
+        [Description("Northern latitude of the box.")] double? maxLat = null,
+        [Description("Parent region id, for example region:51477.")] string? parentId = null,
+        [Description("Case-insensitive name or id substring.")] string? search = null,
+        [Description("Maximum regions to return, 1 to 5000.")] int? limit = null,
+        CancellationToken cancellationToken = default
+    ) =>
+        facade.GetAdminRegionsAsync(
+            levels,
+            GeodataQueryService.ParseBounds(minLon, minLat, maxLon, maxLat),
+            parentId,
+            search,
+            limit ?? 0,
+            cancellationToken
+        );
+
+    [McpServerTool(Name = "admin_region", ReadOnly = true)]
+    [Description("One administrative region by id, for example region:51477.")]
+    public Task<AdminRegionDto?> AdminRegionAsync(
+        [Description("Region id, for example region:51477.")] string id,
+        CancellationToken cancellationToken = default
+    ) => facade.GetAdminRegionAsync(id, cancellationToken);
+
+    [McpServerTool(Name = "regions_at", ReadOnly = true)]
+    [Description(
+        "The administrative regions whose bounds and rings contain a point, ranked so the deepest, smallest region comes first."
+    )]
+    public Task<RegionsAtResponse> RegionsAtAsync(
+        [Description("Longitude, for example 10.45.")] double longitude,
+        [Description("Latitude, for example 51.16.")] double latitude,
+        [Description("Admin levels to include, for example [2,4].")] int[]? levels = null,
+        CancellationToken cancellationToken = default
+    ) => facade.GetRegionsAtAsync(longitude, latitude, levels, cancellationToken);
+
+    [McpServerTool(Name = "region_children", ReadOnly = true)]
+    [Description(
+        "The children of an administrative region at an admin level, computed read-only from the region index."
+    )]
+    public Task<RegionChildrenResponse> RegionChildrenAsync(
+        [Description("Parent region id, for example region:51477.")] string regionId,
+        [Description("Child admin level, for example 4.")] int childLevel,
+        CancellationToken cancellationToken = default
+    ) => facade.GetRegionChildrenAsync(regionId, childLevel, cancellationToken);
+
+    [McpServerTool(Name = "region_index", ReadOnly = true)]
+    [Description("The region index counts, levels, bounds, and database size.")]
+    public Task<RegionIndexResponse> RegionIndexAsync(
+        CancellationToken cancellationToken = default
+    ) => facade.GetRegionIndexAsync(cancellationToken);
 
     [McpServerTool(Name = "settings", ReadOnly = true)]
     [Description(

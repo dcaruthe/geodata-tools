@@ -1,4 +1,5 @@
 using FluentAssertions;
+using GeoTools.Shared.Application.Geodata;
 using GeoTools.Shared.Application.Geospatial;
 using GeoTools.Shared.Application.Link;
 using GeoTools.Shared.Application.Messaging.Messages;
@@ -168,6 +169,26 @@ public sealed class WindowCommandPumpTests
         await pending;
 
         harness.Bus.Published.OfType<CancelRequested>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_reindex_pipeline_command_runs_the_reindex_action()
+    {
+        var harness = await CreateAsync();
+
+        var pending = harness.Enqueue(
+            new PipelineCommandRequest("1", PipelineAction.Reindex, false)
+        );
+        harness.Pump.Drain(new ViewSize(800, 600));
+        var response = await pending;
+
+        response.Ok.Should().BeTrue(response.Error?.Message);
+        harness.Bus.Published.OfType<RebuildRequested>().Should().ContainSingle();
+        harness
+            .Bus.Published.OfType<RebuildRequested>()
+            .Single()
+            .Scope.Should()
+            .Be(RebuildScope.RegionIndex);
     }
 
     [Fact]
@@ -370,6 +391,8 @@ public sealed class WindowCommandPumpTests
             new FakeArtifactStore(),
             new ProgressStore(),
             geometry,
+            index,
+            writer,
             bus,
             Microsoft.Extensions.Options.Options.Create(
                 new GeodataOptions { Regions = ["africa"] }

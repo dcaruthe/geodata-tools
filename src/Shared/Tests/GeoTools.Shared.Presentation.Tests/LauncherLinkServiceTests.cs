@@ -349,6 +349,8 @@ public sealed class LauncherLinkServiceTests : IAsyncDisposable
                 new FakeArtifactStore(),
                 progress,
                 new BorderGeometryStore(),
+                new FakeRegionIndex(),
+                new FakeRegionIndexWriter(),
                 bus,
                 Microsoft.Extensions.Options.Options.Create(
                     new GeodataOptions { Regions = ["africa"] }

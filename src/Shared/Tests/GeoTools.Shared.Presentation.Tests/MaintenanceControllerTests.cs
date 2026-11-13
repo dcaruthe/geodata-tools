@@ -195,6 +195,21 @@ public sealed class MaintenanceControllerTests
     }
 
     [Fact]
+    public async Task Reindexing_queues_the_region_index_scope()
+    {
+        var (controller, _, bus) = Create();
+        await controller.AttachAsync(new FakeMessageBus());
+        Select(controller, "action:reindex");
+
+        controller.Handle(ViewKey.Enter);
+
+        var request = bus.Published.OfType<RebuildRequested>().Single();
+        request.Scope.Should().Be(RebuildScope.RegionIndex);
+        request.Force.Should().BeFalse();
+        controller.Snapshot.Status.Should().Be("Region index rebuild queued.");
+    }
+
+    [Fact]
     public async Task Retrying_resets_the_known_subscriptions()
     {
         var (controller, _, bus) = Create();
@@ -364,6 +379,8 @@ public sealed class MaintenanceControllerTests
             artifacts,
             progress,
             new BorderGeometryStore(),
+            new FakeRegionIndex(),
+            new FakeRegionIndexWriter(),
             bus,
             Microsoft.Extensions.Options.Options.Create(
                 new GeodataOptions { Regions = ["africa"] }

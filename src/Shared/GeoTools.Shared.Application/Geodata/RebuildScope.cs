@@ -6,4 +6,5 @@ public enum RebuildScope
     Pull,
     Extract,
     GeometryCache,
+    RegionIndex,
 }

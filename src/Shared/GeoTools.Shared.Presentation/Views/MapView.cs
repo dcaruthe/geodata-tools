@@ -300,7 +300,11 @@ internal sealed class MapView(
         if (maxX < 0 || maxY < 0 || minX > composition.Size.Width || minY > composition.Size.Height)
             return;
 
-        composition.Add(new TextDto(new Point(minX, minY), label, 14, FocusHighlightColor));
+        // Place the label inside the region's on-screen bounds, clear of the status lines at the
+        // top, and clamped back into the viewport when the region extends off the left or bottom.
+        var x = Math.Clamp(minX + 12, 0, composition.Size.Width);
+        var y = Math.Clamp(Math.Max(minY + 20, 64), 0, composition.Size.Height);
+        composition.Add(new TextDto(new Point(x, y), label, 14, FocusHighlightColor));
     }
 
     private static (float MinX, float MinY, float MaxX, float MaxY) ScreenBounds(

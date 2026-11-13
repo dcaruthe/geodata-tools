@@ -18,6 +18,7 @@ public sealed class GeoToolsFacade(
     IJobStore jobs,
     IArtifactStore artifacts,
     GeodataQueryService geodata,
+    IRegionIndex index,
     IOptions<GeodataOptions> geodataOptions,
     TimeProvider clock,
     ILogger<GeoToolsFacade> logger
@@ -309,6 +310,87 @@ public sealed class GeoToolsFacade(
         string format,
         CancellationToken cancellationToken
     ) => geodata.QueryAsync(bounds, adminLevels, limit, format, cancellationToken);
+
+    public async Task<AdminRegionsResponse> GetAdminRegionsAsync(
+        int[]? levels,
+        GeoBounds? bounds,
+        string? parentId,
+        string? search,
+        int limit,
+        CancellationToken cancellationToken
+    )
+    {
+        var regions = await index.ListRegionsAsync(
+            levels,
+            bounds,
+            parentId,
+            search,
+            limit,
+            cancellationToken
+        );
+        return new AdminRegionsResponse(regions.Select(ToDto).ToArray());
+    }
+
+    public async Task<AdminRegionDto?> GetAdminRegionAsync(
+        string id,
+        CancellationToken cancellationToken
+    )
+    {
+        var detail = await index.GetRegionAsync(id, cancellationToken);
+        return detail is null ? null : ToDto(detail.Summary);
+    }
+
+    public async Task<RegionsAtResponse> GetRegionsAtAsync(
+        double longitude,
+        double latitude,
+        int[]? levels,
+        CancellationToken cancellationToken
+    )
+    {
+        var selected = levels is { Length: > 0 }
+            ? levels
+            : settings.Geodata.ExtractAdminLevels.ToArray();
+        var regions = await index.FindContainingAsync(
+            new GeoPoint(longitude, latitude),
+            selected,
+            cancellationToken
+        );
+        return new RegionsAtResponse(longitude, latitude, regions.Select(ToDto).ToArray());
+    }
+
+    public async Task<RegionChildrenResponse> GetRegionChildrenAsync(
+        string id,
+        int childLevel,
+        CancellationToken cancellationToken
+    )
+    {
+        var regions = await index.FindChildrenAsync(id, childLevel, cancellationToken);
+        return new RegionChildrenResponse(id, childLevel, regions.Select(ToDto).ToArray());
+    }
+
+    public async Task<RegionIndexResponse> GetRegionIndexAsync(CancellationToken cancellationToken)
+    {
+        var stats = await index.GetStatsAsync(cancellationToken);
+        return new RegionIndexResponse(
+            stats.RegionCount,
+            stats.LineCount,
+            stats.Levels,
+            stats.Bounds,
+            stats.DatabaseBytes
+        );
+    }
+
+    private static AdminRegionDto ToDto(RegionSummary summary) =>
+        new(
+            summary.Id,
+            summary.Name,
+            summary.BorderType,
+            summary.AdminLevel,
+            summary.Bounds,
+            summary.ParentId,
+            summary.Area,
+            summary.PointCount
+        );
 
     private async Task<LocalStateDto> BuildLocalAsync(CancellationToken cancellationToken)
     {

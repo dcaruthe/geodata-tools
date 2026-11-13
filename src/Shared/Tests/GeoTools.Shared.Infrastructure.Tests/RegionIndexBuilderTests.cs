@@ -248,6 +248,12 @@ public sealed class RegionIndexBuilderTests
             CancellationToken cancellationToken = default
         ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
 
+        public Task<IReadOnlyList<RegionSummary>> FindChildrenAsync(
+            string parentId,
+            int childLevel,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
+
         public Task<bool> IsResolvedAsync(
             string parentId,
             int childLevel,
@@ -304,6 +310,12 @@ public sealed class RegionIndexBuilderTests
         ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
 
         public Task<IReadOnlyList<RegionSummary>> GetChildrenAsync(
+            string parentId,
+            int childLevel,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
+
+        public Task<IReadOnlyList<RegionSummary>> FindChildrenAsync(
             string parentId,
             int childLevel,
             CancellationToken cancellationToken = default

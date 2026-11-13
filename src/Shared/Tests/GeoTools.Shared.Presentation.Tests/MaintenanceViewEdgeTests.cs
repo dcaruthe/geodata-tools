@@ -41,7 +41,7 @@ public sealed class MaintenanceViewEdgeTests
     {
         var fixture = new ControllerFixture();
 
-        var texts = Texts(fixture.Controller, new ViewSize(1200, 800));
+        var texts = Texts(fixture.Controller, new ViewSize(1200, 900));
 
         texts.Should().Contain("! Reset settings");
     }
@@ -62,7 +62,7 @@ public sealed class MaintenanceViewEdgeTests
     {
         var fixture = new ControllerFixture();
 
-        var scene = new MaintenanceView(fixture.Controller).Compose(new ViewSize(1200, 800));
+        var scene = new MaintenanceView(fixture.Controller).Compose(new ViewSize(1200, 900));
         var selected = Single(scene, "Display levels");
         var next = Single(scene, "Simplify tolerance");
         var bar = scene.Shapes.OfType<PolygonDto>().Single(shape => shape.Filled);
@@ -112,7 +112,7 @@ public sealed class MaintenanceViewEdgeTests
     {
         var fixture = new ControllerFixture();
 
-        var scene = new MaintenanceView(fixture.Controller).Compose(new ViewSize(1200, 800));
+        var scene = new MaintenanceView(fixture.Controller).Compose(new ViewSize(1200, 900));
 
         FilledBars(scene).Should().ContainSingle();
     }
@@ -191,6 +191,8 @@ public sealed class MaintenanceViewEdgeTests
                 new FakeArtifactStore(),
                 new ProgressStore(),
                 new BorderGeometryStore(),
+                new FakeRegionIndex(),
+                new FakeRegionIndexWriter(),
                 new FakeMessageBus(),
                 Microsoft.Extensions.Options.Options.Create(
                     new GeodataOptions

@@ -34,12 +34,16 @@ Desktop map viewer for OpenStreetMap border extracts. .NET 10 on Linux with an X
 - Workers communicate through `IMessageBus`. Messages are appended to SQLite in one writer, delivered at least once, and subscribers persist cursors. Handlers are idempotent.
 - The database uses WAL, `synchronous=FULL`, foreign keys, and a single writer. Schema changes go through `SqliteSchema` and `PRAGMA user_version`; do not add EF migrations.
 - Every pipeline step is idempotent. Downloads use temp files and conditional GET, extraction writes a temp output and renames it, and startup adopts current files instead of rebuilding them.
+- The region index is written only by the launcher. `Regions` holds one row per polygon feature (name, level, bounds, rings blob, parent id, parent-resolved flag, area, source key); `BorderLines` holds non-polygon features; `RegionResolutions` marks each resolved parent/level pair. Parents resolve lazily on the first focus or children read, and a geodata change clears every parent link and marker so nothing dangles.
 
 ## Data and config
 
 - `geodata/` is gitignored and about 80 GB. Never commit it, and do not download it unless the task needs the pipeline. Tests use temp files and fakes.
 - `scripts/pull_geodata.sh` and `scripts/extract_borders.sh` delegate to the headless runtime mode. `osmium` is the only external extraction dependency.
 - `Map:AdminLevels` selects the levels the map draws. `Geodata:ExtractAdminLevels` selects the levels written to the border files. They are separate on purpose.
+- The map is driven with `WASD` and the arrow keys (pan), `+`/`-` (zoom), `F` (focus the region under the crosshair), and `Backspace` (pop the focus stack).
+- The region index reads over REST (`/api/admin-regions`, `/api/admin-regions/at`, `/api/admin-regions/stats`, `/api/admin-regions/{id}`, `/api/admin-regions/{id}/children`), GraphQL (`adminRegions`, `adminRegion`, `regionsAt`, `regionChildren`, `regionIndex`), and MCP (`admin_regions`, `admin_region`, `regions_at`, `region_children`, `region_index`). All are read-only and answer from the read-only database while the launcher is offline.
+- `action:reindex` (and the `Reindex` pipeline action) clears the index and queues a `RebuildScope.RegionIndex` run, which plans only the Load step; the loader backfills the index from the warm geometry cache.
 - `Geodata:RegionList` and `Geodata:ExtractAdminLevelsList` are comma-separated overrides that replace their arrays, because environment variables cannot express an array cleanly.
 - `Storage:DatabasePath` defaults to `geodata/state/geotools.db`. Runtime settings and feature flags are stored there and layered over configuration.
 - `Link:SocketPath` defaults to `geodata/state/launcher.sock` and `Link:KeyPath` to `geodata/state/launcher.key`. The launcher creates the key on its first run with mode 0600, and it is gitignored. `Link:RotateSeconds` defaults to 900 and replaces the session key on that interval.

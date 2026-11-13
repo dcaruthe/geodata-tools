@@ -252,6 +252,33 @@ internal sealed class SqliteRegionIndex(
         return rows.Select(ToSummary).ToArray();
     }
 
+    public async Task<IReadOnlyList<RegionSummary>> FindChildrenAsync(
+        string parentId,
+        int childLevel,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (await IsResolvedAsync(parentId, childLevel, cancellationToken))
+            return await GetChildrenAsync(parentId, childLevel, cancellationToken);
+
+        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        var parent = await context
+            .Regions.AsNoTracking()
+            .FirstOrDefaultAsync(region => region.Id == parentId, cancellationToken);
+        var parentRings = parent is null ? null : TryDecode(parent.Blob, parent.Id);
+        if (parent is null || parentRings is null)
+            return [];
+
+        return await SelectChildrenAsync(
+            context,
+            parentId,
+            childLevel,
+            parent,
+            parentRings,
+            cancellationToken
+        );
+    }
+
     public async Task<bool> IsResolvedAsync(
         string parentId,
         int childLevel,
@@ -380,8 +407,51 @@ internal sealed class SqliteRegionIndex(
             return [];
         }
 
+        var children = await SelectChildrenAsync(
+            context,
+            parentId,
+            childLevel,
+            parent,
+            parentRings,
+            cancellationToken
+        );
+
+        // Persist the parent links for children that had none, leaving a child claimed by another
+        // parent alone. The containment decision already happened above, so this only writes.
+        var childIds = children.Select(child => child.Id).ToArray();
+        if (childIds.Length > 0)
+        {
+            await context
+                .Regions.Where(row => childIds.Contains(row.Id) && row.ParentId == null)
+                .ExecuteUpdateAsync(
+                    updates => updates.SetProperty(row => row.ParentId, parentId),
+                    cancellationToken
+                );
+        }
+
+        parent.ParentResolved = true;
+        context.RegionResolutions.Add(Resolution(parentId, childLevel));
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return children;
+    }
+
+    // The single source of truth for "which rows are children of this parent at this level". The
+    // resolving writer and the read-only reader both call this so their answers agree by
+    // construction. It only reads; the writer persists links separately.
+    private async Task<IReadOnlyList<RegionSummary>> SelectChildrenAsync(
+        GeoToolsDbContext context,
+        string parentId,
+        int childLevel,
+        RegionRow parent,
+        IReadOnlyList<GeoPolyline> parentRings,
+        CancellationToken cancellationToken
+    )
+    {
         var candidates = await context
-            .Regions.Where(region =>
+            .Regions.AsNoTracking()
+            .Where(region =>
                 region.AdminLevel == childLevel
                 && region.Id != parentId
                 && region.MinLongitude <= parent.MaxLongitude
@@ -391,36 +461,25 @@ internal sealed class SqliteRegionIndex(
             )
             .ToListAsync(cancellationToken);
 
-        var children = new List<RegionSummary>();
+        var children = new List<RegionSummary>(candidates.Count);
         foreach (var candidate in candidates)
         {
             var rings = TryDecode(candidate.Blob, candidate.Id);
             if (rings is null || !IsContainedChild(rings, parentRings))
                 continue;
 
-            if (candidate.ParentId is null)
-            {
-                candidate.ParentId = parentId;
-                children.Add(ToSummary(candidate));
-            }
-            else if (candidate.ParentId == parentId)
-            {
-                children.Add(ToSummary(candidate));
-            }
-            else
+            if (candidate.ParentId is not null && candidate.ParentId != parentId)
             {
                 logger.LogDebug(
                     "Region {Id} already has parent {Parent}; leaving it.",
                     candidate.Id,
                     candidate.ParentId
                 );
+                continue;
             }
-        }
 
-        parent.ParentResolved = true;
-        context.RegionResolutions.Add(Resolution(parentId, childLevel));
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            children.Add(ToSummary(candidate));
+        }
 
         return children.OrderBy(child => child.Area).ToArray();
     }

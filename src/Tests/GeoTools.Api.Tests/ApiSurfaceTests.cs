@@ -110,6 +110,83 @@ public sealed class ApiSurfaceTests(ApiFactory factory) : IClassFixture<ApiFacto
     }
 
     [Fact]
+    public async Task Admin_regions_list_the_seeded_regions()
+    {
+        var json = await GetJson("/api/admin-regions?levels=2&limit=5");
+
+        json.GetProperty("regions").GetArrayLength().Should().Be(1);
+        json.GetProperty("regions")[0].GetProperty("name").GetString().Should().Be("Deutschland");
+        json.GetProperty("regions")[0].GetProperty("adminLevel").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Admin_regions_at_returns_the_containing_regions_deepest_first()
+    {
+        var json = await GetJson("/api/admin-regions/at?lon=3&lat=3&levels=2,4");
+
+        var regions = json.GetProperty("regions");
+        regions.GetArrayLength().Should().Be(2);
+        regions[0].GetProperty("name").GetString().Should().Be("Bayern");
+        regions[1].GetProperty("name").GetString().Should().Be("Deutschland");
+        json.GetProperty("longitude").GetDouble().Should().Be(3);
+        json.GetProperty("latitude").GetDouble().Should().Be(3);
+    }
+
+    [Fact]
+    public async Task Admin_region_detail_returns_level_bounds_and_point_count()
+    {
+        var json = await GetJson("/api/admin-regions/region:de");
+
+        json.GetProperty("id").GetString().Should().Be("region:de");
+        json.GetProperty("name").GetString().Should().Be("Deutschland");
+        json.GetProperty("adminLevel").GetInt32().Should().Be(2);
+        json.GetProperty("pointCount").GetInt32().Should().Be(5);
+        json.GetProperty("bounds").GetProperty("minLongitude").GetDouble().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Admin_region_missing_returns_404()
+    {
+        var response = await Client.GetAsync("/api/admin-regions/region:missing");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Admin_region_children_returns_the_contained_regions()
+    {
+        var json = await GetJson("/api/admin-regions/region:de/children?level=4");
+
+        json.GetProperty("parentId").GetString().Should().Be("region:de");
+        json.GetProperty("childLevel").GetInt32().Should().Be(4);
+        json.GetProperty("regions").GetArrayLength().Should().Be(1);
+        json.GetProperty("regions")[0].GetProperty("name").GetString().Should().Be("Bayern");
+    }
+
+    [Fact]
+    public async Task Admin_regions_stats_report_counts_and_database_size()
+    {
+        var json = await GetJson("/api/admin-regions/stats");
+
+        json.GetProperty("regionCount").GetInt32().Should().Be(2);
+        json.GetProperty("lineCount").GetInt32().Should().Be(1);
+        json.GetProperty("levels")
+            .EnumerateArray()
+            .Select(level => level.GetInt32())
+            .Should()
+            .Equal(2, 4);
+        json.GetProperty("databaseBytes").GetInt64().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Admin_regions_at_rejects_out_of_range_coordinates()
+    {
+        var response = await Client.GetAsync("/api/admin-regions/at?lon=999&lat=0&levels=2");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Settings_expose_the_window_size()
     {
         var json = await GetJson("/api/settings");

@@ -51,6 +51,15 @@ public interface IRegionIndex
         CancellationToken cancellationToken = default
     );
 
+    // Answers the same children as the resolving writer without persisting anything. When the
+    // resolution marker already exists the persisted links answer; otherwise the candidate set and
+    // containment test run read-only so the API can answer with the launcher closed.
+    Task<IReadOnlyList<RegionSummary>> FindChildrenAsync(
+        string parentId,
+        int childLevel,
+        CancellationToken cancellationToken = default
+    );
+
     Task<bool> IsResolvedAsync(
         string parentId,
         int childLevel,

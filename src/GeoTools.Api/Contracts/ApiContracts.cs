@@ -100,6 +100,39 @@ public sealed record BorderSummaryDto(
 
 public sealed record BorderQueryResponse(BorderSummaryDto Summary, GeoJsonResponse? GeoJson);
 
+public sealed record AdminRegionDto(
+    string Id,
+    string? Name,
+    string? BorderType,
+    int AdminLevel,
+    GeoBounds Bounds,
+    string? ParentId,
+    double Area,
+    int PointCount
+);
+
+public sealed record AdminRegionsResponse(IReadOnlyList<AdminRegionDto> Regions);
+
+public sealed record RegionsAtResponse(
+    double Longitude,
+    double Latitude,
+    IReadOnlyList<AdminRegionDto> Regions
+);
+
+public sealed record RegionChildrenResponse(
+    string ParentId,
+    int ChildLevel,
+    IReadOnlyList<AdminRegionDto> Regions
+);
+
+public sealed record RegionIndexResponse(
+    int RegionCount,
+    int LineCount,
+    int[] Levels,
+    GeoBounds Bounds,
+    long DatabaseBytes
+);
+
 public sealed record ScreenshotInfoDto(
     string Base64Png,
     int Width,

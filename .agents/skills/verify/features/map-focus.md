@@ -13,7 +13,8 @@ link, REST, GraphQL, and MCP.
 - `map-focus-frame` fits the region's projected bounds with 24 px padding so every border is in
   frame and at least one axis is tight.
 - `map-focus-highlight` draws the focused region's outline in `(255, 204, 102)` and its name label
-  at the region's top-left.
+  inside the region's on-screen bounds at `left + 12`, `max(top + 20, 64)`, clamped to the viewport
+  so it stays clear of the status lines.
 - `map-focus-children` reveals the next extracted admin level inside the focused region in
   `(140, 190, 235)`.
 - `map-focus-stack` pushes each focused region; `Backspace` pops back to the parent and then to the
@@ -85,8 +86,8 @@ After `api-start`, the camera and focus are scriptable. Read `API_PORT` from `st
 - `POST /api/map/zoom` with `direction` 1 prints a `Camera center` line with a higher zoom factor;
   `POST /api/map/pan` with `dx` 64 moves the longitude east and logs `translated`.
 - The focused region's outline is `(255, 204, 102)`, the revealed state borders are
-  `(140, 190, 235)`, and the region name label is on screen. The blur-to-world capture has no
-  highlight pixels.
+  `(140, 190, 235)`, and the region name label is on screen below the status lines. The
+  blur-to-world capture has no highlight pixels.
 - With the launcher down, `GET /api/map` and every map command route return 409.
 
 ## Gotchas

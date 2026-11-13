@@ -81,6 +81,8 @@ public sealed class MaintenanceViewTests
             new FakeArtifactStore(),
             new ProgressStore(),
             new BorderGeometryStore(),
+            new FakeRegionIndex(),
+            new FakeRegionIndexWriter(),
             new FakeMessageBus(),
             Microsoft.Extensions.Options.Options.Create(
                 new GeodataOptions { Regions = ["africa"] }

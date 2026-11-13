@@ -316,6 +316,62 @@ public sealed class RegionHierarchyTests
     }
 
     [Fact]
+    public async Task FindChildrenAsync_matches_the_resolving_path_and_writes_nothing()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var store = CreateStore(database);
+        var shell = Square(0, 0, 10, 10, 2);
+        var hole = Square(4, 4, 6, 6, 2);
+        await store.WriteSourceAsync(
+            "africa",
+            "key-a",
+            [
+                Region("region:parent", [shell, hole], 2),
+                Region("region:inside", [Square(1, 1, 2, 2, 4)], 4),
+                Region("region:in-hole", [Square(4.5, 4.5, 5.5, 5.5, 4)], 4),
+                Region("region:outside", [Square(-20, -20, -19, -19, 4)], 4),
+            ],
+            [],
+            CancellationToken.None
+        );
+
+        var children = await store.FindChildrenAsync("region:parent", 4);
+
+        children.Select(region => region.Id).Should().Equal("region:inside");
+
+        (await store.IsResolvedAsync("region:parent", 4)).Should().BeFalse();
+        await using var context = await database.Factory.CreateDbContextAsync();
+        (await context.Regions.SingleAsync(region => region.Id == "region:inside"))
+            .ParentId.Should()
+            .BeNull();
+        (await context.Regions.SingleAsync(region => region.Id == "region:parent"))
+            .ParentResolved.Should()
+            .BeFalse();
+    }
+
+    [Fact]
+    public async Task FindChildrenAsync_returns_persisted_children_once_resolved()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var store = CreateStore(database);
+        await store.WriteSourceAsync(
+            "africa",
+            "key-a",
+            [
+                Region("region:parent", [Square(0, 0, 10, 10, 2)], 2),
+                Region("region:child", [Square(1, 1, 2, 2, 4)], 4),
+            ],
+            [],
+            CancellationToken.None
+        );
+        await store.ResolveChildrenAsync("region:parent", 4);
+
+        var children = await store.FindChildrenAsync("region:parent", 4);
+
+        children.Select(region => region.Id).Should().Equal("region:child");
+    }
+
+    [Fact]
     public async Task WriteSourceAsync_clears_parent_links_and_resolutions()
     {
         await using var database = await TestDatabase.CreateAsync();

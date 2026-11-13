@@ -74,6 +74,12 @@ internal sealed class FakeRegionIndex : IRegionIndex
         CancellationToken cancellationToken = default
     ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
 
+    public Task<IReadOnlyList<RegionSummary>> FindChildrenAsync(
+        string parentId,
+        int childLevel,
+        CancellationToken cancellationToken = default
+    ) => Task.FromResult<IReadOnlyList<RegionSummary>>([]);
+
     public Task<bool> IsResolvedAsync(
         string parentId,
         int childLevel,
