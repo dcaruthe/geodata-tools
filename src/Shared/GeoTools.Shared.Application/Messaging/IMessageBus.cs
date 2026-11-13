@@ -18,6 +18,10 @@ public interface IMessageBus
 
     Task ResetSubscriptionAsync(string subscriberId, CancellationToken cancellationToken = default);
 
+    // Delivers every message that is already persisted, without waiting for the poll. A short
+    // lived host uses it before stopping so its final state reaches the subscribers.
+    Task DrainAsync(CancellationToken cancellationToken = default);
+
     Task StartAsync(CancellationToken cancellationToken = default);
 
     Task StopAsync(CancellationToken cancellationToken = default);

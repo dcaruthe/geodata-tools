@@ -26,6 +26,7 @@ internal sealed class SqliteMessageBus : IMessageBus, IAsyncDisposable
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false }
     );
     private readonly SemaphoreSlim _signal = new(0);
+    private readonly SemaphoreSlim _dispatchGate = new(1, 1);
     private readonly ConcurrentDictionary<string, Subscription> _subscriptions = new(
         StringComparer.Ordinal
     );
@@ -133,6 +134,11 @@ internal sealed class SqliteMessageBus : IMessageBus, IAsyncDisposable
             subscription.Unpark();
     }
 
+    public async Task DrainAsync(CancellationToken cancellationToken = default)
+    {
+        while (await DispatchOnceAsync(cancellationToken) > 0) { }
+    }
+
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _started, 1) == 1)
@@ -192,15 +198,24 @@ internal sealed class SqliteMessageBus : IMessageBus, IAsyncDisposable
         await StopAsync();
         _cts.Dispose();
         _signal.Dispose();
+        _dispatchGate.Dispose();
     }
 
     internal async Task<int> DispatchOnceAsync(CancellationToken cancellationToken = default)
     {
-        var handled = 0;
-        foreach (var subscription in _subscriptions.Values)
-            handled += await DispatchSubscriptionAsync(subscription, cancellationToken);
+        await _dispatchGate.WaitAsync(cancellationToken);
+        try
+        {
+            var handled = 0;
+            foreach (var subscription in _subscriptions.Values)
+                handled += await DispatchSubscriptionAsync(subscription, cancellationToken);
 
-        return handled;
+            return handled;
+        }
+        finally
+        {
+            _dispatchGate.Release();
+        }
     }
 
     internal async Task PruneAsync(CancellationToken cancellationToken = default)

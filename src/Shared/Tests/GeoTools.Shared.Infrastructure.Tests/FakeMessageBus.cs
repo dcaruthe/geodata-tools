@@ -52,6 +52,8 @@ internal sealed class FakeMessageBus : IMessageBus
         return Task.CompletedTask;
     }
 
+    public Task DrainAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
         Started = true;

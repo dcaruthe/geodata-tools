@@ -139,6 +139,8 @@ internal sealed class FakeMessageBus : IMessageBus
 
     public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    public Task DrainAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task DeliverAsync<TMessage>(string topic, TMessage message) =>

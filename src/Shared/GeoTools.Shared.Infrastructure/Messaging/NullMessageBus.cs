@@ -28,6 +28,8 @@ internal sealed class NullMessageBus : IMessageBus
         CancellationToken cancellationToken = default
     ) => Task.CompletedTask;
 
+    public Task DrainAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
