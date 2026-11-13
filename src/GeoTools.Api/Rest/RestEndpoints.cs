@@ -1,8 +1,6 @@
 using GeoTools.Api.Contracts;
 using GeoTools.Api.Facade;
 using GeoTools.Shared.Application.Link;
-using GeoTools.Shared.Application.Views;
-using GeoTools.Shared.Domain.Geospatial;
 
 namespace GeoTools.Api.Rest;
 
